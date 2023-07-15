@@ -27,6 +27,20 @@ ssize_t recv_all(int socket, void *buffer, size_t len, int flags) {
     return ptr - (char *)buffer; // the same as len
 }
 
+#if FORT_EXTRA_DEBUG
+const char *fort_state_to_str(fort_state state) {
+    switch (state) {
+    case FORT_STATE_IDLE: return "FORT_STATE_IDLE";
+    case FORT_STATE_HELLO_SENT: return "FORT_STATE_HELLO_SENT";
+    case FORT_STATE_HELLO_RECEIVED: return "FORT_STATE_HELLO_RECEIVED";
+    case FORT_STATE_BOUND: return "FORT_STATE_BOUND";
+    case FORT_STATE_CLOSING: return "FORT_STATE_CLOSING";
+    case FORT_STATE_CLOSED: return "FORT_STATE_CLOSED";
+    default: return "not a valid state";
+    }
+}
+#endif
+
 int fort_begin(void)
 {
     fort_main_session.state = FORT_STATE_IDLE;
@@ -234,26 +248,19 @@ ssize_t handle_packet(fort_session *sess, const fort_header *hdr, const void *da
 
     switch (hdr->packet_type) {
     case PACKET_HELLO:
-        if (sess->state != FORT_STATE_HELLO_SENT) {
-            return -1;
-        }
+        EXPECT_STATE(sess, FORT_STATE_HELLO_SENT);
         sess->state = FORT_STATE_HELLO_RECEIVED;
         xEventGroupSetBits(sess->events, FORT_EVT_GATEWAY_HELLO);
         break;
 
     case PACKET_BINDR:
-        if (sess->state != FORT_STATE_HELLO_RECEIVED) {
-            return -1;
-        }
+        EXPECT_STATE(sess, FORT_STATE_HELLO_RECEIVED);
         sess->gateway_bind_port = hdr->port;
         xEventGroupSetBits(sess->events, FORT_EVT_GATEWAY_BINDR);
         break;
  
     case PACKET_OPENC: {
-        if (sess->state != FORT_STATE_BOUND) {
-            return -1;
-        }
-
+        EXPECT_STATE(sess, FORT_STATE_BOUND);
         struct sockaddr_in addr = sess->gateway_addr;
         addr.sin_port = htons(hdr->port);
 
@@ -279,7 +286,9 @@ ssize_t handle_packet(fort_session *sess, const fort_header *hdr, const void *da
     case PACKET_SHUTD: {
         if (sess->state != FORT_STATE_HELLO_RECEIVED &&
             sess->state != FORT_STATE_BOUND) {
-            // TODO: warn about a wrong state, then proceed
+            ESP_LOGW(TAG, "Wrong state (" STATE_FMT_SPEC 
+                ") for SHUTD initiation, proceeding anyway",
+                STATE_FMT(sess->state));
         }
         // gateway initiated shutdown, so it's its job to close all the connections, 
         // we just respond with a SHUTD packet
