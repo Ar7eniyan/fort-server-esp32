@@ -29,6 +29,7 @@ ssize_t recv_all(int socket, void *buffer, size_t len, int flags) {
 
 int fort_begin(void)
 {
+    fort_main_session.state = FORT_STATE_IDLE;
     fort_main_session.lock = xSemaphoreCreateMutex();
     xTaskCreate(
         fort_task, FORT_TASK_NAME, FORT_TASK_STACK,NULL, FORT_TASK_PRIO, &fort_globals.fort_task
@@ -74,7 +75,9 @@ int fort_bind_and_listen(uint16_t port, int backlog)
     xEventGroupWaitBits(fort_main_session.events, FORT_EVT_GATEWAY_BINDR,
         pdTRUE, pdTRUE, portMAX_DELAY);
 
-    if (fort_main_session.gateway_bind_port != port) {
+    if (fort_main_session.gateway_bind_port == port) {
+        fort_main_session.state = FORT_STATE_BOUND;
+    } else {
         err = -1;
         ESP_LOGE(TAG, "gateway bind failure: port %u (got) != port %u (expected)", 
             fort_main_session.gateway_bind_port, port);
@@ -147,6 +150,7 @@ int fort_do_connect(fort_session *sess, const char *hostname, const uint16_t por
     // TODO: check for errors
     send_all(service_sock, &hello, sizeof hello, 0);
 
+    sess->state = FORT_STATE_HELLO_SENT;
     xEventGroupSetBits(sess->events, FORT_EVT_SERVER_HELLO);
     freeaddrinfo(servinfo);
     return 0;
@@ -229,17 +233,27 @@ ssize_t handle_packet(fort_session *sess, const fort_header *hdr, const void *da
     ssize_t response_len = 0;
 
     switch (hdr->packet_type) {
-    case PACKET_HELLO: 
+    case PACKET_HELLO:
+        if (sess->state != FORT_STATE_HELLO_SENT) {
+            return -1;
+        }
+        sess->state = FORT_STATE_HELLO_RECEIVED;
         xEventGroupSetBits(sess->events, FORT_EVT_GATEWAY_HELLO);
         break;
 
     case PACKET_BINDR:
-        // TODO: check if the current state is correct
+        if (sess->state != FORT_STATE_HELLO_RECEIVED) {
+            return -1;
+        }
         sess->gateway_bind_port = hdr->port;
         xEventGroupSetBits(sess->events, FORT_EVT_GATEWAY_BINDR);
         break;
  
     case PACKET_OPENC: {
+        if (sess->state != FORT_STATE_BOUND) {
+            return -1;
+        }
+
         struct sockaddr_in addr = sess->gateway_addr;
         addr.sin_port = htons(hdr->port);
 
@@ -263,10 +277,15 @@ ssize_t handle_packet(fort_session *sess, const fort_header *hdr, const void *da
         break;
     }
     case PACKET_SHUTD: {
+        if (sess->state != FORT_STATE_HELLO_RECEIVED &&
+            sess->state != FORT_STATE_BOUND) {
+            // TODO: warn about a wrong state, then proceed
+        }
         // gateway initiated shutdown, so it's its job to close all the connections, 
         // we just respond with a SHUTD packet
         fort_header shutd = { .packet_type = PACKET_SHUTD, .data_length = 0, .port = 0 };
         send_all(sess->service_socket, &shutd, sizeof shutd, 0);
+        sess->state = FORT_STATE_CLOSED;
         break;
     }
     case PACKET_BLANK:
