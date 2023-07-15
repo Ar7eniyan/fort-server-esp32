@@ -1,0 +1,25 @@
+{
+    "cmake.configureOnOpen": true,
+    "files.associations": {
+        "freertos.h": "c",
+        "fort-server_private.h": "c",
+        "portable.h": "c",
+        "projdefs.h": "c",
+        "reent.h": "c",
+        "fort-server.h": "c",
+        "socket.h": "c",
+        "inet.h": "c",
+        "netdb.h": "c",
+        "select.h": "c",
+        "time.h": "c",
+        "types.h": "c",
+        "assert.h": "c",
+        "event_groups.h": "c",
+        "esp_log.h": "c",
+        "semphr.h": "c"
+    },
+    "C_Cpp.inlayHints.autoDeclarationTypes.enabled": false,
+    "C_Cpp.inlayHints.autoDeclarationTypes.showOnLeft": true,
+    "C_Cpp.inlayHints.parameterNames.enabled": false,
+    "C_Cpp.workspaceParsingPriority": "high"
+}
