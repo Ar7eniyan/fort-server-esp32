@@ -29,15 +29,6 @@ typedef struct {
 
 extern fort_globals_t fort_globals;
 
-typedef enum {
-    FORT_STATE_IDLE, 
-    FORT_STATE_HELLO_SENT,
-    FORT_STATE_HELLO_RECEIVED,
-    FORT_STATE_BOUND,
-    FORT_STATE_CLOSING,
-    FORT_STATE_CLOSED,
-} fort_state;
-
 // To be used in fort_header::packet_type
 typedef enum {
     PACKET_HELLO = 0x01,

@@ -14,9 +14,19 @@
 extern "C" {
 #endif
 
+typedef enum {
+    FORT_STATE_IDLE, 
+    FORT_STATE_HELLO_SENT,
+    FORT_STATE_HELLO_RECEIVED,
+    FORT_STATE_BOUND,
+    FORT_STATE_CLOSING,
+    FORT_STATE_CLOSED,
+} fort_state;
+
 typedef struct {
     int error;
     bool forwarding_enabled;
+    fort_state state;
     
     // for fort_bind_and_listen()
     uint16_t gateway_bind_port;
