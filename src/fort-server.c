@@ -108,6 +108,19 @@ ret:
     return err;
 }
 
+int fort_accept(uint64_t timeout_ms)
+{
+    EXPECT_STATE(&fort_main_session, FORT_STATE_BOUND);
+    if (fort_main_session.error) {
+        return fort_main_session.error;
+    }
+
+    int sock;
+    int rc = xQueueReceive(
+        fort_main_session.accept_queue, &sock, pdTICKS_TO_MS(timeout_ms));
+    return rc == pdTRUE ? sock : -1;
+}
+
 int fort_end(void)
 {
     xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
