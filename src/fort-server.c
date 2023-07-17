@@ -271,7 +271,9 @@ ssize_t receive_packet_step(fort_session *sess, char **response) {
     // we've just received packet data or its length is zero after receiving header
     // in both cases the packet is ready for processing
     if (!bytes_left && recv_ptr != hdr_buf + sizeof(fort_header)) {
+        xSemaphoreTake(sess->lock, portMAX_DELAY);
         response_len = handle_packet(sess, (const fort_header *)hdr_buf, data_buf, response);
+        xSemaphoreGive(sess->lock);
         free(data_buf);
 
         bytes_left = sizeof(fort_header);
@@ -361,6 +363,7 @@ ssize_t handle_packet(fort_session *sess, const fort_header *hdr, const void *da
 }
 
 // the main task that processes all incoming packets and responses on them
+// TODO: split into two tasks: network and internal logic
 void fort_task(void *parameters)
 {
     fort_session *sess = &fort_main_session;
