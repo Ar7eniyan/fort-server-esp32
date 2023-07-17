@@ -52,9 +52,6 @@ int fort_accept(uint64_t timeout_ms);
 
 int fort_disconnect(void);
 
-// deallocate the main session
-int fort_end(void);
-
 
 // This implementation supports only one session.
 // Seriously, why would you need more on ESP32?

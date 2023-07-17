@@ -21,13 +21,14 @@
 #define FORT_EVT_SERVER_HELLO  (1 << 0)
 #define FORT_EVT_GATEWAY_HELLO (2 << 0)
 #define FORT_EVT_GATEWAY_BINDR (3 << 0)
+#define FORT_EVT_GATEWAY_SHUTD (4 << 0)
 
 #if FORT_EXTRA_DEBUG
 #define STATE_FMT_SPEC "%s"
 #define STATE_FMT(state) fort_state_to_str(state)
 #else
 #define STATE_FMT_SPEC "0x%X"
-#define STATE_FMT(state) state
+#define STATE_FMT(state) ((unsigned int)(state))
 #endif
 
 #define EXPECT_STATE(sess_ptr, state_)                                  \
@@ -74,6 +75,7 @@ const char *fort_state_to_str(fort_state state);
 
 int fort_do_connect(fort_session *sess, const char *hostname, const uint16_t port);
 int fort_do_listen(fort_session *sess, const uint16_t port, const int backlog);
+int fort_do_disconnect(fort_session *sess);
 
 ssize_t receive_packet_step(fort_session *sess, char **response);
 ssize_t handle_packet(fort_session *sess, const fort_header *hdr, const void *data, char **response);

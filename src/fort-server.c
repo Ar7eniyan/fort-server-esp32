@@ -121,18 +121,34 @@ int fort_accept(uint64_t timeout_ms)
     return rc == pdTRUE ? sock : -1;
 }
 
-int fort_end(void)
+int fort_disconnect(void)
 {
+    if (fort_main_session.error) {
+        return fort_main_session.error;
+    }
+    // Can't use EXPECT_STATE because there are multiple states allowed
+    if (fort_main_session.state != FORT_STATE_BOUND &&
+        fort_main_session.state != FORT_STATE_HELLO_RECEIVED) {
+        ESP_LOGE(TAG,
+            "Unexpected state when trying to disconnect: " STATE_FMT_SPEC,
+            STATE_FMT(fort_main_session.state));
+        return -1;
+    }
+
     xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
-    // TODO: rename this function,
-    // add SHUTD sending logic here and in handle_packet
+    int err = fort_do_disconnect(&fort_main_session);
+    if (err != 0) goto ret;
+    // TODO: add a timeout
+    xEventGroupWaitBits(fort_main_session.events, FORT_EVT_GATEWAY_SHUTD, pdTRUE, pdTRUE, portMAX_DELAY);
+    
     if (fort_main_session.accept_queue) {
         vQueueDelete(fort_main_session.accept_queue);
         fort_main_session.accept_queue = NULL;
     }
 
+ret:
     xSemaphoreGive(fort_main_session.lock);
-    return 0;
+    return err;
 }
 
 // connect and send hello
@@ -208,6 +224,14 @@ int fort_do_listen(fort_session *sess, const uint16_t port, const int backlog)
     return 0;
 }
 
+int fort_do_disconnect(fort_session *sess)
+{
+    sess->state = FORT_STATE_CLOSING;
+    fort_header shutd = { .packet_type = PACKET_SHUTD, .data_length = 0, .port = 0 };
+    int rc = send_all(sess->service_socket, &shutd, sizeof shutd, 0);
+    return rc == -1 ? -1 : 0;
+}
+
 // Called only from fort-task when there are incoming data on service_socket,
 // does not block.
 ssize_t receive_packet_step(fort_session *sess, char **response) {
@@ -257,6 +281,7 @@ ssize_t receive_packet_step(fort_session *sess, char **response) {
     return response_len;
 }
 
+// TODO: break down to multiple functions
 ssize_t handle_packet(fort_session *sess, const fort_header *hdr, const void *data, char **response)
 {
     size_t len = (size_t)hdr->data_length;
@@ -300,7 +325,13 @@ ssize_t handle_packet(fort_session *sess, const fort_header *hdr, const void *da
         break;
     }
     case PACKET_SHUTD: {
-        if (sess->state != FORT_STATE_HELLO_RECEIVED &&
+        if (sess->state == FORT_STATE_CLOSING) {
+            // we initiated a shutdown and got a response from the gateway
+            sess->state = FORT_STATE_CLOSED;
+            xEventGroupSetBits(sess->events, FORT_EVT_GATEWAY_SHUTD);
+            break;
+        }
+        if (sess->state != FORT_STATE_HELLO_RECEIVED && 
             sess->state != FORT_STATE_BOUND) {
             ESP_LOGW(TAG, "Wrong state (" STATE_FMT_SPEC 
                 ") for SHUTD initiation, proceeding anyway",
