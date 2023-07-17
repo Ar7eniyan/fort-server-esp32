@@ -75,82 +75,6 @@ int fort_connect(const char *hostname, const uint16_t port)
     return err;
 }
 
-int fort_bind_and_listen(uint16_t port, int backlog)
-{
-    EXPECT_STATE(&fort_main_session, FORT_STATE_HELLO_RECEIVED);
-    if (fort_main_session.error) {
-        return fort_main_session.error;
-    }
-
-    xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
-
-    int err = fort_do_listen(&fort_main_session, port, backlog);
-    if (err != 0) goto ret;
-
-    // TODO: add a timeout
-    xEventGroupWaitBits(fort_main_session.events, FORT_EVT_GATEWAY_BINDR,
-        pdTRUE, pdTRUE, portMAX_DELAY);
-
-    if (fort_main_session.gateway_bind_port == port) {
-        fort_main_session.state = FORT_STATE_BOUND;
-    } else {
-        err = -1;
-        ESP_LOGE(TAG, "gateway bind failure: port %u (got) != port %u (expected)", 
-            fort_main_session.gateway_bind_port, port);
-    }
-
-ret:
-    if (err != 0) {
-        fort_main_session.error = err;
-    }
-
-    xSemaphoreGive(fort_main_session.lock);
-    return err;
-}
-
-int fort_accept(uint64_t timeout_ms)
-{
-    EXPECT_STATE(&fort_main_session, FORT_STATE_BOUND);
-    if (fort_main_session.error) {
-        return fort_main_session.error;
-    }
-
-    int sock;
-    int rc = xQueueReceive(
-        fort_main_session.accept_queue, &sock, pdTICKS_TO_MS(timeout_ms));
-    return rc == pdTRUE ? sock : -1;
-}
-
-int fort_disconnect(void)
-{
-    if (fort_main_session.error) {
-        return fort_main_session.error;
-    }
-    // Can't use EXPECT_STATE because there are multiple states allowed
-    if (fort_main_session.state != FORT_STATE_BOUND &&
-        fort_main_session.state != FORT_STATE_HELLO_RECEIVED) {
-        ESP_LOGE(TAG,
-            "Unexpected state when trying to disconnect: " STATE_FMT_SPEC,
-            STATE_FMT(fort_main_session.state));
-        return -1;
-    }
-
-    xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
-    int err = fort_do_disconnect(&fort_main_session);
-    if (err != 0) goto ret;
-    // TODO: add a timeout
-    xEventGroupWaitBits(fort_main_session.events, FORT_EVT_GATEWAY_SHUTD, pdTRUE, pdTRUE, portMAX_DELAY);
-    
-    if (fort_main_session.accept_queue) {
-        vQueueDelete(fort_main_session.accept_queue);
-        fort_main_session.accept_queue = NULL;
-    }
-
-ret:
-    xSemaphoreGive(fort_main_session.lock);
-    return err;
-}
-
 // connect and send hello
 int fort_do_connect(fort_session *sess, const char *hostname, const uint16_t port)
 {
@@ -202,6 +126,39 @@ int fort_do_connect(fort_session *sess, const char *hostname, const uint16_t por
     return 0;
 }
 
+int fort_bind_and_listen(uint16_t port, int backlog)
+{
+    EXPECT_STATE(&fort_main_session, FORT_STATE_HELLO_RECEIVED);
+    if (fort_main_session.error) {
+        return fort_main_session.error;
+    }
+
+    xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
+
+    int err = fort_do_listen(&fort_main_session, port, backlog);
+    if (err != 0) goto ret;
+
+    // TODO: add a timeout
+    xEventGroupWaitBits(fort_main_session.events, FORT_EVT_GATEWAY_BINDR,
+        pdTRUE, pdTRUE, portMAX_DELAY);
+
+    if (fort_main_session.gateway_bind_port == port) {
+        fort_main_session.state = FORT_STATE_BOUND;
+    } else {
+        err = -1;
+        ESP_LOGE(TAG, "gateway bind failure: port %u (got) != port %u (expected)", 
+            fort_main_session.gateway_bind_port, port);
+    }
+
+ret:
+    if (err != 0) {
+        fort_main_session.error = err;
+    }
+
+    xSemaphoreGive(fort_main_session.lock);
+    return err;
+}
+
 int fort_do_listen(fort_session *sess, const uint16_t port, const int backlog)
 {
     sess->accept_queue = xQueueCreate(backlog, sizeof(int));
@@ -222,6 +179,49 @@ int fort_do_listen(fort_session *sess, const uint16_t port, const int backlog)
         return -1;
     }
     return 0;
+}
+
+int fort_accept(uint64_t timeout_ms)
+{
+    EXPECT_STATE(&fort_main_session, FORT_STATE_BOUND);
+    if (fort_main_session.error) {
+        return fort_main_session.error;
+    }
+
+    int sock;
+    int rc = xQueueReceive(
+        fort_main_session.accept_queue, &sock, pdTICKS_TO_MS(timeout_ms));
+    return rc == pdTRUE ? sock : -1;
+}
+
+int fort_disconnect(void)
+{
+    if (fort_main_session.error) {
+        return fort_main_session.error;
+    }
+    // Can't use EXPECT_STATE because there are multiple states allowed
+    if (fort_main_session.state != FORT_STATE_BOUND &&
+        fort_main_session.state != FORT_STATE_HELLO_RECEIVED) {
+        ESP_LOGE(TAG,
+            "Unexpected state when trying to disconnect: " STATE_FMT_SPEC,
+            STATE_FMT(fort_main_session.state));
+        return -1;
+    }
+
+    xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
+    int err = fort_do_disconnect(&fort_main_session);
+    if (err != 0) goto ret;
+    // TODO: add a timeout
+    xEventGroupWaitBits(fort_main_session.events, FORT_EVT_GATEWAY_SHUTD, pdTRUE, pdTRUE, portMAX_DELAY);
+    
+    if (fort_main_session.accept_queue) {
+        vQueueDelete(fort_main_session.accept_queue);
+        fort_main_session.accept_queue = NULL;
+    }
+
+ret:
+    xSemaphoreGive(fort_main_session.lock);
+    return err;
 }
 
 int fort_do_disconnect(fort_session *sess)
