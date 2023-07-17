@@ -56,6 +56,7 @@ int fort_begin(void)
 
 int fort_connect(const char *hostname, const uint16_t port)
 {
+    EXPECT_STATE(&fort_main_session, FORT_STATE_IDLE);
     if (fort_main_session.error) {
         return fort_main_session.error;
     }
@@ -76,6 +77,7 @@ int fort_connect(const char *hostname, const uint16_t port)
 
 int fort_bind_and_listen(uint16_t port, int backlog)
 {
+    EXPECT_STATE(&fort_main_session, FORT_STATE_HELLO_RECEIVED);
     if (fort_main_session.error) {
         return fort_main_session.error;
     }
@@ -109,7 +111,8 @@ ret:
 int fort_end(void)
 {
     xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
-
+    // TODO: rename this function,
+    // add SHUTD sending logic here and in handle_packet
     if (fort_main_session.accept_queue) {
         vQueueDelete(fort_main_session.accept_queue);
         fort_main_session.accept_queue = NULL;
