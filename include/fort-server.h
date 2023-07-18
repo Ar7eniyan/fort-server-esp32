@@ -24,14 +24,33 @@ typedef enum {
 } fort_state;
 
 typedef enum {
+    // Normal operation
     FORT_ERR_OK = 0,
-    FORT_ERR_SOCKCLOSED = -1,
+    // Gateway closed service socket
+    FORT_ERR_SOCKET_CLOSED = -1,
+    // Error in recv()
     FORT_ERR_RECV = -2,
+    // Error in send()
     FORT_ERR_SEND = -3,
+    // Error in getaddrinfo()
+    FORT_ERR_GETAI = -4,
+    // Error in socket()
+    FORT_ERR_SOCKET = -5,
+    // Error in connect()
+    FORT_ERR_CONNECT = -6,
+    // Gateway failed to bind to a requested port, try a different port
+    FORT_ERR_GATEWAY_BIND = -7,
+    // fort_accept() timed out
+    FORT_ERR_TIMEOUT = -8,
+    // Unexpected session state
+    FORT_ERR_WRONG_STATE = -9,
+    // Accept queue is full
+    FORT_ERR_QUEUE_FULL = -10,
 } fort_error;
 
 typedef struct {
-    int error;
+    // Critical errors that don't occur during normal functioning    
+    fort_error error;
     bool forwarding_enabled;
     fort_state state;
     

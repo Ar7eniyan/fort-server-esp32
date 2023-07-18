@@ -36,7 +36,7 @@ if ((sess_ptr)->state != (state_)) {                                    \
     ESP_LOGE(TAG,                                                       \
         "Wrong state: expected " STATE_FMT_SPEC ", got" STATE_FMT_SPEC, \
         STATE_FMT(state_), STATE_FMT((sess_ptr)->state));               \
-    return -1;                                                          \
+    return FORT_ERR_WRONG_STATE;                                                          \
 }
 
 typedef struct {
