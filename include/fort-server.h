@@ -78,6 +78,9 @@ int fort_accept(uint64_t timeout_ms);
 
 int fort_disconnect(void);
 
+// close the service socket and other resources, cleanup the session for next use
+int fort_end();
+
 const char *fort_strerror(fort_error err);
 
 

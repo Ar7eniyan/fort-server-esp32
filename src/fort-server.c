@@ -187,7 +187,6 @@ int fort_bind_and_listen(uint16_t port, int backlog)
 
     int err = fort_do_listen(&fort_main_session, port, backlog);
     if (err != FORT_ERR_OK) {
-        // TODO: handle FORT_ERR_SOCKET_CLOSED separately, reset session
         fort_main_session.error = (fort_error)err;
         xSemaphoreGive(fort_main_session.lock);
         return err;
@@ -278,8 +277,31 @@ int fort_do_disconnect(fort_session *sess)
     return err < FORT_ERR_OK ? err : FORT_ERR_OK;
 }
 
+int fort_end()
+{
+    EXPECT_STATE(&fort_main_session, FORT_STATE_CLOSED);
+    return fort_do_end(&fort_main_session);
+}
+
+int fort_do_end(fort_session *sess)
+{
+    sess->error = FORT_ERR_OK;
+    sess->state = FORT_STATE_IDLE;
+    sess->gateway_bind_port = 0;
+    close(sess->service_socket);
+    sess->service_socket = -1;
+    memset(&sess->gateway_addr, 0, sizeof sess->gateway_addr);
+    vEventGroupDelete(sess->events);
+    if (sess->accept_queue) {
+        vQueueDelete(sess->accept_queue);
+        sess->accept_queue = NULL;
+    }
+    return FORT_ERR_OK;
+}
+
 // Called only from fort-task when there are incoming data on service_socket,
 // does not block.
+// TODO: remove unneeded response handling from here and in the main loop
 ssize_t receive_packet_step(fort_session *sess, char **response) {
     // Can I somehow wait (return) until a full header/data arrives
     // and then read it in a one go?
@@ -296,9 +318,12 @@ ssize_t receive_packet_step(fort_session *sess, char **response) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
             ESP_LOGE(TAG, "recv() error in a main loop: %s", strerror(errno));
         } else if (received == 0) {
-            // TODO: properly deal with it later
-            ESP_LOGE(TAG, "unexpected socket close");
-            abort();
+            if (sess->state != FORT_STATE_CLOSED) {
+                ESP_LOGE(TAG, "Unexpected socket close, closing the session");
+            }
+            xSemaphoreTake(sess->lock, portMAX_DELAY);
+            fort_do_end(&fort_main_session);
+            xSemaphoreGive(sess->lock);
         } else {
             bytes_left -= (size_t)received;
             recv_ptr += received;
