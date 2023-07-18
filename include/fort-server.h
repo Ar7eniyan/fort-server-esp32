@@ -78,6 +78,8 @@ int fort_accept(uint64_t timeout_ms);
 
 int fort_disconnect(void);
 
+const char *fort_strerror(fort_error err);
+
 
 // This implementation supports only one session.
 // Seriously, why would you need more on ESP32?

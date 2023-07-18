@@ -60,10 +60,28 @@ const char *fort_state_to_str(fort_state state) {
     case FORT_STATE_BOUND: return "FORT_STATE_BOUND";
     case FORT_STATE_CLOSING: return "FORT_STATE_CLOSING";
     case FORT_STATE_CLOSED: return "FORT_STATE_CLOSED";
-    default: return "not a valid state";
+    default: return "Not a valid state";
     }
 }
 #endif
+
+const char *fort_strerror(fort_error err)
+{
+    switch (err) {
+    case FORT_ERR_OK: return "Normal operation";
+    case FORT_ERR_SOCKET_CLOSED: return "Gateway closed service socket";
+    case FORT_ERR_RECV: return "Error in recv()";
+    case FORT_ERR_SEND: return "Error in send()";
+    case FORT_ERR_GETAI: return "Error in getaddrinfo()";
+    case FORT_ERR_SOCKET: return "Error in socket()";
+    case FORT_ERR_CONNECT: return "Error in connect()";
+    case FORT_ERR_GATEWAY_BIND: return "Gateway failed to bind to a requested port";
+    case FORT_ERR_TIMEOUT: return "fort_accept() timed out";
+    case FORT_ERR_WRONG_STATE: return "Unexpected session state";
+    case FORT_ERR_QUEUE_FULL: return "Accept queue is full";
+    default: return "Unknown error";
+    }
+}
 
 int fort_begin(void)
 {
