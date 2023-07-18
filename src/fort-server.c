@@ -54,12 +54,12 @@ ssize_t fort_recv_all(int socket, void *buffer, size_t len, int flags)
 #if FORT_EXTRA_DEBUG
 const char *fort_state_to_str(fort_state state) {
     switch (state) {
-    case FORT_STATE_IDLE: return "FORT_STATE_IDLE";
-    case FORT_STATE_HELLO_SENT: return "FORT_STATE_HELLO_SENT";
-    case FORT_STATE_HELLO_RECEIVED: return "FORT_STATE_HELLO_RECEIVED";
-    case FORT_STATE_BOUND: return "FORT_STATE_BOUND";
-    case FORT_STATE_CLOSING: return "FORT_STATE_CLOSING";
-    case FORT_STATE_CLOSED: return "FORT_STATE_CLOSED";
+    case FORT_STATE_IDLE: return "IDLE";
+    case FORT_STATE_HELLO_SENT: return "HELLO-SENT";
+    case FORT_STATE_HELLO_RECEIVED: return "HELLO-RECEIVED";
+    case FORT_STATE_BOUND: return "BOUND";
+    case FORT_STATE_CLOSING: return "CLOSING";
+    case FORT_STATE_CLOSED: return "CLOSED";
     default: return "Not a valid state";
     }
 }
