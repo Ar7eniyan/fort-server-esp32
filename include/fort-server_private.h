@@ -69,6 +69,11 @@ static_assert(sizeof(fort_header) == 5, "fort_header is not fully packed");
 static inline ssize_t send_all(int socket, void *buffer, size_t len, int flags);
 static inline ssize_t recv_all(int socket, void *buffer, size_t len, int flags);
 
+// Same as above + proper error handling (uses fort_error enum). Treats socket
+// close as an error
+static inline ssize_t fort_send_all(int socket, void *buffer, size_t len, int flags);
+static inline ssize_t fort_recv_all(int socket, void *buffer, size_t len, int flags);
+
 #if FORT_EXTRA_DEBUG
 const char *fort_state_to_str(fort_state state);
 #endif

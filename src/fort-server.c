@@ -27,6 +27,30 @@ ssize_t recv_all(int socket, void *buffer, size_t len, int flags) {
     return ptr - (char *)buffer; // the same as len
 }
 
+ssize_t fort_send_all(int socket, void *buffer, size_t len, int flags)
+{
+    ssize_t rc = send_all(socket, buffer, len, flags);
+    if (rc > 0) return rc;
+    if (rc == 0) {
+        ESP_LOGE(TAG, "Unexpected socket close");
+        return FORT_ERR_SOCKCLOSED;
+    }
+    ESP_LOGE(TAG, "Socket send() error: %s", strerror(errno));
+    return FORT_ERR_SEND;
+}
+
+ssize_t fort_recv_all(int socket, void *buffer, size_t len, int flags)
+{
+    ssize_t rc = recv_all(socket, buffer, len, flags);
+    if (rc > 0) return rc;
+    if (rc == 0) {
+        ESP_LOGE(TAG, "Unexpected socket close");
+        return FORT_ERR_SOCKCLOSED;
+    }
+    ESP_LOGE(TAG, "Socket recv() error: %s", strerror(errno));
+    return FORT_ERR_RECV;
+}
+
 #if FORT_EXTRA_DEBUG
 const char *fort_state_to_str(fort_state state) {
     switch (state) {
@@ -112,14 +136,16 @@ int fort_do_connect(fort_session *sess, const char *hostname, const uint16_t por
         ESP_LOGE(TAG, "connect error: %s", strerror(errno));
         return -1;
     }
-    sess->service_socket = service_sock;
-    sess->gateway_addr = gateway_addr;
 
     // send our HELLO to the gateway
     fort_header hello = { .packet_type = PACKET_HELLO, .data_length = 0 };
-    // TODO: check for errors
-    send_all(service_sock, &hello, sizeof hello, 0);
+    if ((err = fort_send_all(service_sock, &hello, sizeof hello, 0)) < 0) {
+        close(service_sock);
+        return err;
+    }
 
+    sess->service_socket = service_sock;
+    sess->gateway_addr = gateway_addr;
     sess->state = FORT_STATE_HELLO_SENT;
     xEventGroupSetBits(sess->events, FORT_EVT_SERVER_HELLO);
     freeaddrinfo(servinfo);
@@ -169,16 +195,8 @@ int fort_do_listen(fort_session *sess, const uint16_t port, const int backlog)
         .port = sess->gateway_bind_port,
         .data_length = 0
     };
-    ssize_t err = send_all(sess->service_socket, &bind, sizeof bind, 0);
-
-    if (err == 0) {
-        ESP_LOGE(TAG, "unexpected socket close");
-        return -1;
-    } else if (err == -1) {
-        ESP_LOGE(TAG, "send error: %s", strerror(errno));
-        return -1;
-    }
-    return 0;
+    int err = fort_send_all(sess->service_socket, &bind, sizeof bind, 0);
+    return err < FORT_ERR_OK ? err : FORT_ERR_OK;
 }
 
 int fort_accept(uint64_t timeout_ms)
@@ -228,8 +246,8 @@ int fort_do_disconnect(fort_session *sess)
 {
     sess->state = FORT_STATE_CLOSING;
     fort_header shutd = { .packet_type = PACKET_SHUTD, .data_length = 0, .port = 0 };
-    int rc = send_all(sess->service_socket, &shutd, sizeof shutd, 0);
-    return rc == -1 ? -1 : 0;
+    int err = fort_send_all(sess->service_socket, &shutd, sizeof shutd, 0);
+    return err < FORT_ERR_OK ? err : FORT_ERR_OK;
 }
 
 // Called only from fort-task when there are incoming data on service_socket,
@@ -342,7 +360,12 @@ ssize_t handle_packet(fort_session *sess, const fort_header *hdr, const void *da
         // gateway initiated shutdown, so it's its job to close all the connections, 
         // we just respond with a SHUTD packet
         fort_header shutd = { .packet_type = PACKET_SHUTD, .data_length = 0, .port = 0 };
-        send_all(sess->service_socket, &shutd, sizeof shutd, 0);
+        int err = fort_send_all(sess->service_socket, &shutd, sizeof shutd, 0);
+        if (err < FORT_ERR_OK) {
+            ESP_LOGE(TAG, "Can't reply with SHUTD packet, "
+                "closing the socket by ourselves instead of the gateway");
+            close(sess->service_socket);
+        }
         sess->state = FORT_STATE_CLOSED;
         break;
     }
@@ -393,7 +416,7 @@ void fort_task(void *parameters)
         if (fds[0].revents & POLLOUT) {
             // Don't care about non-blocking, because we should send the response
             // before processing a new packet
-            send_all(sess->service_socket, response, response_len, 0);
+            fort_send_all(sess->service_socket, response, response_len, 0);
             free(response);
             fds[0].events &= ~(short)POLLOUT;
         }

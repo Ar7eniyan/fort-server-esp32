@@ -23,6 +23,13 @@ typedef enum {
     FORT_STATE_CLOSED,
 } fort_state;
 
+typedef enum {
+    FORT_ERR_OK = 0,
+    FORT_ERR_SOCKCLOSED = -1,
+    FORT_ERR_RECV = -2,
+    FORT_ERR_SEND = -3,
+} fort_error;
+
 typedef struct {
     int error;
     bool forwarding_enabled;
