@@ -100,19 +100,13 @@ fort_error fort_connect(const char *hostname, const uint16_t port)
     }
 
     xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
-
     fort_error err = fort_do_connect(&fort_main_session, hostname, port);
-    if (err != FORT_ERR_OK) {
-        fort_main_session.error = (fort_error)err;
-        xSemaphoreGive(fort_main_session.lock);
-        return err;
-    }
+    fort_main_session.error = (fort_error)err;
+    xSemaphoreGive(fort_main_session.lock);
     // TODO: add a timeout
     // wait for the gateway to respond with a HELLO
     xEventGroupWaitBits(fort_main_session.events, FORT_EVT_GATEWAY_HELLO, pdTRUE, pdTRUE, portMAX_DELAY);
-
-    xSemaphoreGive(fort_main_session.lock);
-    return FORT_ERR_OK;
+    return err;
 }
 
 // connect and send hello
@@ -180,28 +174,15 @@ fort_error fort_bind_and_listen(uint16_t port, int backlog)
     }
 
     xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
-
     fort_error err = fort_do_listen(&fort_main_session, port, backlog);
-    if (err != FORT_ERR_OK) {
-        fort_main_session.error = (fort_error)err;
-        xSemaphoreGive(fort_main_session.lock);
-        return err;
-    }
-
-    // TODO: add a timeout
-    xEventGroupWaitBits(fort_main_session.events, FORT_EVT_GATEWAY_BINDR,
-        pdTRUE, pdTRUE, portMAX_DELAY);
-
-    if (fort_main_session.gateway_bind_port == port) {
-        fort_main_session.state = FORT_STATE_BOUND;
-    } else {
-        // Bind failure is not a critical error, so don't set session error
-        err = FORT_ERR_GATEWAY_BIND;
-        ESP_LOGE(TAG, "Gateway bind failure: port %u (got) != port %u (expected)", 
-            fort_main_session.gateway_bind_port, port);
-    }
-
+    fort_main_session.error = (fort_error)err;
     xSemaphoreGive(fort_main_session.lock);
+    // TODO: add a timeout
+    if (err == FORT_ERR_OK) {
+        xEventGroupWaitBits(fort_main_session.events, FORT_EVT_GATEWAY_BINDR,
+            pdTRUE, pdTRUE, portMAX_DELAY);
+    }
+    
     return err;
 }
 
@@ -247,20 +228,13 @@ fort_error fort_disconnect(void)
 
     xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
     fort_error err = fort_do_disconnect(&fort_main_session);
-    if (err != FORT_ERR_OK) {
-        fort_main_session.error = err;
-        xSemaphoreGive(fort_main_session.lock);
-        return err;
-    };
-    // TODO: add a timeout
-    xEventGroupWaitBits(fort_main_session.events, FORT_EVT_GATEWAY_SHUTD, pdTRUE, pdTRUE, portMAX_DELAY);
-    
-    if (fort_main_session.accept_queue) {
-        vQueueDelete(fort_main_session.accept_queue);
-        fort_main_session.accept_queue = NULL;
-    }
-
+    fort_main_session.error = err;
     xSemaphoreGive(fort_main_session.lock);
+    if (err == FORT_ERR_OK) {
+        // TODO: add a timeout
+        xEventGroupWaitBits(fort_main_session.events, FORT_EVT_GATEWAY_SHUTD, pdTRUE, pdTRUE, portMAX_DELAY);
+    }
+    
     return err;
 }
 
@@ -373,7 +347,17 @@ ssize_t handle_packet(fort_session *sess, const fort_header *hdr, const void *da
 
     case PACKET_BINDR:
         EXPECT_STATE(sess, FORT_STATE_HELLO_RECEIVED);
-        sess->gateway_bind_port = hdr->port;
+        if (sess->gateway_bind_port == 0) {
+            break;
+        }
+        if (sess->gateway_bind_port != hdr->port) {
+            ESP_LOGE(TAG,
+                "Gateway bind failure: port %u (got) != port %u (expected)", 
+                hdr->port, sess->gateway_bind_port);
+            sess->gateway_bind_port = 0;
+            return FORT_ERR_GATEWAY_BIND;
+        }
+        sess->state = FORT_STATE_BOUND;
         xEventGroupSetBits(sess->events, FORT_EVT_GATEWAY_BINDR);
         break;
  
