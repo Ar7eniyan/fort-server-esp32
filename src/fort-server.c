@@ -5,50 +5,46 @@
 
 static const char *TAG = "fort-server";
 
-ssize_t send_all(int socket, void *buffer, size_t len, int flags) {
+fort_error fort_send_all(int socket, void *buffer, size_t len, int flags)
+{
+    if (len == 0) return FORT_ERR_OK;
     char *ptr = (char *)buffer;
+
     while (len) {
         ssize_t i = send(socket, ptr, len, flags);
-        if (i < 1) return i;
+        if (i < 1) {
+            if (i == 0) {
+                ESP_LOGE(TAG, "Unexpected socket close");
+                return FORT_ERR_SOCKET_CLOSED;
+            }
+            ESP_LOGE(TAG, "Socket send() error: %s", strerror(errno));
+            return FORT_ERR_SEND;
+        }
         ptr += i;
         len -= i;
     }
-    return ptr - (char *)buffer; // the same as len
+    return FORT_ERR_OK;
 }
 
-ssize_t recv_all(int socket, void *buffer, size_t len, int flags) {
+fort_error fort_recv_all(int socket, void *buffer, size_t len, int flags)
+{
+    if (len == 0) return FORT_ERR_OK;
     char *ptr = (char *)buffer;
+    
     while (len) {
         ssize_t i = recv(socket, ptr, len, flags);
-        if (i < 1) return i;
+        if (i < 1) {
+            if (i == 0) {
+                ESP_LOGE(TAG, "Unexpected socket close");
+                return FORT_ERR_SOCKET_CLOSED;
+            }
+            ESP_LOGE(TAG, "Socket recv() error: %s", strerror(errno));
+            return FORT_ERR_RECV;
+        }
         ptr += i;
         len -= i;
     }
-    return ptr - (char *)buffer; // the same as len
-}
-
-ssize_t fort_send_all(int socket, void *buffer, size_t len, int flags)
-{
-    ssize_t rc = send_all(socket, buffer, len, flags);
-    if (rc > 0) return rc;
-    if (rc == 0) {
-        ESP_LOGE(TAG, "Unexpected socket close");
-        return FORT_ERR_SOCKET_CLOSED;
-    }
-    ESP_LOGE(TAG, "Socket send() error: %s", strerror(errno));
-    return FORT_ERR_SEND;
-}
-
-ssize_t fort_recv_all(int socket, void *buffer, size_t len, int flags)
-{
-    ssize_t rc = recv_all(socket, buffer, len, flags);
-    if (rc > 0) return rc;
-    if (rc == 0) {
-        ESP_LOGE(TAG, "Unexpected socket close");
-        return FORT_ERR_SOCKET_CLOSED;
-    }
-    ESP_LOGE(TAG, "Socket recv() error: %s", strerror(errno));
-    return FORT_ERR_RECV;
+    return FORT_ERR_OK;
 }
 
 #if FORT_EXTRA_DEBUG
@@ -219,8 +215,7 @@ fort_error fort_do_listen(fort_session *sess, const uint16_t port, const int bac
         .port = sess->gateway_bind_port,
         .data_length = 0
     };
-    ssize_t err = fort_send_all(sess->service_socket, &bind, sizeof bind, 0);
-    return err < FORT_ERR_OK ? (fort_error)err : FORT_ERR_OK;
+    return fort_send_all(sess->service_socket, &bind, sizeof bind, 0);
 }
 
 int fort_accept(uint64_t timeout_ms)
@@ -273,8 +268,7 @@ fort_error fort_do_disconnect(fort_session *sess)
 {
     sess->state = FORT_STATE_CLOSING;
     fort_header shutd = { .packet_type = PACKET_SHUTD, .data_length = 0, .port = 0 };
-    ssize_t err = fort_send_all(sess->service_socket, &shutd, sizeof shutd, 0);
-    return err < FORT_ERR_OK ? (fort_error)err : FORT_ERR_OK;
+    return fort_send_all(sess->service_socket, &shutd, sizeof shutd, 0);
 }
 
 fort_error fort_end(void)
@@ -428,7 +422,7 @@ ssize_t handle_packet(fort_session *sess, const fort_header *hdr, const void *da
         // gateway initiated shutdown, so it's its job to close all the connections, 
         // we just respond with a SHUTD packet
         fort_header shutd = { .packet_type = PACKET_SHUTD, .data_length = 0, .port = 0 };
-        int err = fort_send_all(sess->service_socket, &shutd, sizeof shutd, 0);
+        fort_error err = fort_send_all(sess->service_socket, &shutd, sizeof shutd, 0);
         if (err < FORT_ERR_OK) {
             ESP_LOGE(TAG, "Can't reply with SHUTD packet, "
                 "closing the socket by ourselves instead of the gateway");
