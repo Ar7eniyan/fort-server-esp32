@@ -18,6 +18,9 @@
 #define FORT_TASK_PRIO     10
 #define FORT_TASK_STACK    1024
 
+// Timeout in ms for HELLO and SHUTD handshake responses
+#define FORT_REPONSE_TIMEOUT 15000
+
 #define FORT_EVT_SERVER_HELLO  (1 << 0)
 #define FORT_EVT_GATEWAY_HELLO (2 << 0)
 #define FORT_EVT_GATEWAY_BINDR (3 << 0)

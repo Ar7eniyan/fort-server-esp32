@@ -40,7 +40,7 @@ typedef enum {
     FORT_ERR_CONNECT = -6,
     // Gateway failed to bind to a requested port, try a different port
     FORT_ERR_GATEWAY_BIND = -7,
-    // fort_accept() timed out
+    // Timeout in fort_accept() or in receiving a response to HELLO or SHUTD
     FORT_ERR_TIMEOUT = -8,
     // Unexpected session state
     FORT_ERR_WRONG_STATE = -9,

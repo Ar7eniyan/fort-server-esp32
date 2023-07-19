@@ -64,18 +64,30 @@ const char *fort_state_to_str(fort_state state) {
 const char *fort_strerror(fort_error err)
 {
     switch (err) {
-    case FORT_ERR_OK: return "Normal operation";
-    case FORT_ERR_SOCKET_CLOSED: return "Gateway closed service socket";
-    case FORT_ERR_RECV: return "Error in recv()";
-    case FORT_ERR_SEND: return "Error in send()";
-    case FORT_ERR_GETAI: return "Error in getaddrinfo()";
-    case FORT_ERR_SOCKET: return "Error in socket()";
-    case FORT_ERR_CONNECT: return "Error in connect()";
-    case FORT_ERR_GATEWAY_BIND: return "Gateway failed to bind to a requested port";
-    case FORT_ERR_TIMEOUT: return "fort_accept() timed out";
-    case FORT_ERR_WRONG_STATE: return "Unexpected session state";
-    case FORT_ERR_QUEUE_FULL: return "Accept queue is full";
-    default: return "Unknown error";
+    case FORT_ERR_OK: return \
+        "Normal operation";
+    case FORT_ERR_SOCKET_CLOSED: return \
+        "Gateway closed service socket";
+    case FORT_ERR_RECV: return \
+        "Error in recv()";
+    case FORT_ERR_SEND: return \
+        "Error in send()";
+    case FORT_ERR_GETAI: return \
+        "Error in getaddrinfo()";
+    case FORT_ERR_SOCKET: return \
+        "Error in socket()";
+    case FORT_ERR_CONNECT: return \
+        "Error in connect()";
+    case FORT_ERR_GATEWAY_BIND: return \
+        "Gateway failed to bind to a requested port";
+    case FORT_ERR_TIMEOUT: return \
+        "Timeout in fort_accept() or in receiving a response to HELLO or SHUTD";
+    case FORT_ERR_WRONG_STATE: return \
+        "Unexpected session state";
+    case FORT_ERR_QUEUE_FULL: return \
+        "Accept queue is full";
+    default: return \
+        "Unknown error";
     }
 }
 
@@ -91,7 +103,8 @@ fort_error fort_begin(void)
     return FORT_ERR_OK;
 }
 
-
+// fort_connect(), fort_bind_and_listen() and fort_disconnect() look like a
+// lot of boilerplate code, should(can) I fix it?
 fort_error fort_connect(const char *hostname, const uint16_t port)
 {
     EXPECT_STATE(&fort_main_session, FORT_STATE_IDLE);
@@ -100,13 +113,18 @@ fort_error fort_connect(const char *hostname, const uint16_t port)
     }
 
     xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
+    xEventGroupClearBits(fort_main_session.events, FORT_EVT_GATEWAY_HELLO);
     fort_error err = fort_do_connect(&fort_main_session, hostname, port);
     fort_main_session.error = (fort_error)err;
     xSemaphoreGive(fort_main_session.lock);
-    // TODO: add a timeout
+    if (err != FORT_ERR_OK) return err;
+
     // wait for the gateway to respond with a HELLO
-    xEventGroupWaitBits(fort_main_session.events, FORT_EVT_GATEWAY_HELLO, pdTRUE, pdTRUE, portMAX_DELAY);
-    return err;
+    EventBits_t bits = xEventGroupWaitBits(fort_main_session.events,
+        FORT_EVT_GATEWAY_HELLO, pdTRUE, pdTRUE,
+        pdMS_TO_TICKS(FORT_REPONSE_TIMEOUT));
+
+    return (bits & FORT_EVT_GATEWAY_HELLO) ? FORT_ERR_OK : FORT_ERR_TIMEOUT;
 }
 
 // connect and send hello
@@ -174,16 +192,17 @@ fort_error fort_bind_and_listen(uint16_t port, int backlog)
     }
 
     xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
+    xEventGroupClearBits(fort_main_session.events, FORT_EVT_GATEWAY_BINDR);
     fort_error err = fort_do_listen(&fort_main_session, port, backlog);
     fort_main_session.error = (fort_error)err;
     xSemaphoreGive(fort_main_session.lock);
-    // TODO: add a timeout
-    if (err == FORT_ERR_OK) {
-        xEventGroupWaitBits(fort_main_session.events, FORT_EVT_GATEWAY_BINDR,
-            pdTRUE, pdTRUE, portMAX_DELAY);
-    }
-    
-    return err;
+
+    if (err != FORT_ERR_OK) return err;
+    EventBits_t bits = xEventGroupWaitBits(fort_main_session.events,
+        FORT_EVT_GATEWAY_BINDR, pdTRUE, pdTRUE,
+        pdMS_TO_TICKS(FORT_REPONSE_TIMEOUT));
+        
+    return (bits & FORT_EVT_GATEWAY_BINDR) ? FORT_ERR_OK : FORT_ERR_TIMEOUT;
 }
 
 fort_error fort_do_listen(fort_session *sess, const uint16_t port, const int backlog)
@@ -227,15 +246,17 @@ fort_error fort_disconnect(void)
     }
 
     xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
+    xEventGroupClearBits(fort_main_session.events, FORT_EVT_GATEWAY_SHUTD);
     fort_error err = fort_do_disconnect(&fort_main_session);
     fort_main_session.error = err;
     xSemaphoreGive(fort_main_session.lock);
-    if (err == FORT_ERR_OK) {
-        // TODO: add a timeout
-        xEventGroupWaitBits(fort_main_session.events, FORT_EVT_GATEWAY_SHUTD, pdTRUE, pdTRUE, portMAX_DELAY);
-    }
-    
-    return err;
+
+    if (err != FORT_ERR_OK) return err;
+    EventBits_t bits = xEventGroupWaitBits(fort_main_session.events,
+        FORT_EVT_GATEWAY_SHUTD, pdTRUE, pdTRUE,
+        pdMS_TO_TICKS(FORT_REPONSE_TIMEOUT));
+
+    return (bits & FORT_EVT_GATEWAY_SHUTD) ? FORT_ERR_OK : FORT_ERR_TIMEOUT;    
 }
 
 fort_error fort_do_disconnect(fort_session *sess)
