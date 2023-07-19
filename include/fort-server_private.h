@@ -78,10 +78,10 @@ static inline ssize_t fort_recv_all(int socket, void *buffer, size_t len, int fl
 const char *fort_state_to_str(fort_state state);
 #endif
 
-int fort_do_connect(fort_session *sess, const char *hostname, const uint16_t port);
-int fort_do_listen(fort_session *sess, const uint16_t port, const int backlog);
-int fort_do_disconnect(fort_session *sess);
-int fort_do_end(fort_session *sess);
+fort_error fort_do_connect(fort_session *sess, const char *hostname, const uint16_t port);
+fort_error fort_do_listen(fort_session *sess, const uint16_t port, const int backlog);
+fort_error fort_do_disconnect(fort_session *sess);
+fort_error fort_do_end(fort_session *sess);
 
 ssize_t receive_packet_step(fort_session *sess, char **response);
 ssize_t handle_packet(fort_session *sess, const fort_header *hdr, const void *data, char **response);

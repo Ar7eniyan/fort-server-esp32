@@ -83,7 +83,7 @@ const char *fort_strerror(fort_error err)
     }
 }
 
-int fort_begin(void)
+fort_error fort_begin(void)
 {
     fort_main_session.state = FORT_STATE_IDLE;
     fort_main_session.lock = xSemaphoreCreateMutex();
@@ -96,7 +96,7 @@ int fort_begin(void)
 }
 
 
-int fort_connect(const char *hostname, const uint16_t port)
+fort_error fort_connect(const char *hostname, const uint16_t port)
 {
     EXPECT_STATE(&fort_main_session, FORT_STATE_IDLE);
     if (fort_main_session.error) {
@@ -105,7 +105,7 @@ int fort_connect(const char *hostname, const uint16_t port)
 
     xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
 
-    int err = fort_do_connect(&fort_main_session, hostname, port);
+    fort_error err = fort_do_connect(&fort_main_session, hostname, port);
     if (err != FORT_ERR_OK) {
         fort_main_session.error = (fort_error)err;
         xSemaphoreGive(fort_main_session.lock);
@@ -120,7 +120,7 @@ int fort_connect(const char *hostname, const uint16_t port)
 }
 
 // connect and send hello
-int fort_do_connect(fort_session *sess, const char *hostname, const uint16_t port)
+fort_error fort_do_connect(fort_session *sess, const char *hostname, const uint16_t port)
 {
     int err;
     struct addrinfo hints, *servinfo = NULL;
@@ -165,7 +165,7 @@ int fort_do_connect(fort_session *sess, const char *hostname, const uint16_t por
     if ((err = fort_send_all(service_sock, &hello, sizeof hello, 0)) < FORT_ERR_OK) {
         close(service_sock);
         freeaddrinfo(servinfo);
-        return err;
+        return (fort_error)err;
     }
 
     sess->service_socket = service_sock;
@@ -176,7 +176,7 @@ int fort_do_connect(fort_session *sess, const char *hostname, const uint16_t por
     return FORT_ERR_OK;
 }
 
-int fort_bind_and_listen(uint16_t port, int backlog)
+fort_error fort_bind_and_listen(uint16_t port, int backlog)
 {
     EXPECT_STATE(&fort_main_session, FORT_STATE_HELLO_RECEIVED);
     if (fort_main_session.error) {
@@ -185,7 +185,7 @@ int fort_bind_and_listen(uint16_t port, int backlog)
 
     xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
 
-    int err = fort_do_listen(&fort_main_session, port, backlog);
+    fort_error err = fort_do_listen(&fort_main_session, port, backlog);
     if (err != FORT_ERR_OK) {
         fort_main_session.error = (fort_error)err;
         xSemaphoreGive(fort_main_session.lock);
@@ -209,7 +209,7 @@ int fort_bind_and_listen(uint16_t port, int backlog)
     return err;
 }
 
-int fort_do_listen(fort_session *sess, const uint16_t port, const int backlog)
+fort_error fort_do_listen(fort_session *sess, const uint16_t port, const int backlog)
 {
     sess->accept_queue = xQueueCreate(backlog, sizeof(int));
     sess->gateway_bind_port = port;
@@ -219,8 +219,8 @@ int fort_do_listen(fort_session *sess, const uint16_t port, const int backlog)
         .port = sess->gateway_bind_port,
         .data_length = 0
     };
-    int err = fort_send_all(sess->service_socket, &bind, sizeof bind, 0);
-    return err < FORT_ERR_OK ? err : FORT_ERR_OK;
+    ssize_t err = fort_send_all(sess->service_socket, &bind, sizeof bind, 0);
+    return err < FORT_ERR_OK ? (fort_error)err : FORT_ERR_OK;
 }
 
 int fort_accept(uint64_t timeout_ms)
@@ -236,7 +236,7 @@ int fort_accept(uint64_t timeout_ms)
     return rc == pdTRUE ? sock : FORT_ERR_TIMEOUT;
 }
 
-int fort_disconnect(void)
+fort_error fort_disconnect(void)
 {
     // Can't use EXPECT_STATE because there are multiple states allowed
     if (fort_main_session.state != FORT_STATE_BOUND &&
@@ -251,9 +251,9 @@ int fort_disconnect(void)
     }
 
     xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
-    int err = fort_do_disconnect(&fort_main_session);
-    if (err != 0) {
-        fort_main_session.error = (fort_error)err;
+    fort_error err = fort_do_disconnect(&fort_main_session);
+    if (err != FORT_ERR_OK) {
+        fort_main_session.error = err;
         xSemaphoreGive(fort_main_session.lock);
         return err;
     };
@@ -269,21 +269,21 @@ int fort_disconnect(void)
     return err;
 }
 
-int fort_do_disconnect(fort_session *sess)
+fort_error fort_do_disconnect(fort_session *sess)
 {
     sess->state = FORT_STATE_CLOSING;
     fort_header shutd = { .packet_type = PACKET_SHUTD, .data_length = 0, .port = 0 };
-    int err = fort_send_all(sess->service_socket, &shutd, sizeof shutd, 0);
-    return err < FORT_ERR_OK ? err : FORT_ERR_OK;
+    ssize_t err = fort_send_all(sess->service_socket, &shutd, sizeof shutd, 0);
+    return err < FORT_ERR_OK ? (fort_error)err : FORT_ERR_OK;
 }
 
-int fort_end(void)
+fort_error fort_end(void)
 {
     EXPECT_STATE(&fort_main_session, FORT_STATE_CLOSED);
     return fort_do_end(&fort_main_session);
 }
 
-int fort_do_end(fort_session *sess)
+fort_error fort_do_end(fort_session *sess)
 {
     sess->error = FORT_ERR_OK;
     sess->state = FORT_STATE_IDLE;

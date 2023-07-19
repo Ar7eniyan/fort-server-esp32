@@ -67,20 +67,20 @@ typedef struct {
 } fort_session;
 
 // Set up the main task, etc
-int fort_begin(void);
+fort_error fort_begin(void);
 
 // connect to the gateway, open a session
-int fort_connect(const char *hostname, const uint16_t port);
+fort_error fort_connect(const char *hostname, const uint16_t port);
 
 // bind to a port and listen with a backlog in a single function
-int fort_bind_and_listen(uint16_t port, int backlog);
+fort_error fort_bind_and_listen(uint16_t port, int backlog);
 
 int fort_accept(uint64_t timeout_ms);
 
-int fort_disconnect(void);
+fort_error fort_disconnect(void);
 
 // close the service socket and other resources, cleanup the session for next use
-int fort_end(void);
+fort_error fort_end(void);
 
 fort_error fort_clear_error(void);
 
