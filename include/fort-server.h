@@ -48,6 +48,7 @@ typedef enum {
     FORT_ERR_QUEUE_FULL = -10,
 } fort_error;
 
+// TODO: hide the implementation to restrict a user to the public API
 typedef struct {
     // Critical errors that don't occur during normal functioning    
     fort_error error;
@@ -79,7 +80,7 @@ int fort_accept(uint64_t timeout_ms);
 int fort_disconnect(void);
 
 // close the service socket and other resources, cleanup the session for next use
-int fort_end();
+int fort_end(void);
 
 const char *fort_strerror(fort_error err);
 

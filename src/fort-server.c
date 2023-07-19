@@ -277,7 +277,7 @@ int fort_do_disconnect(fort_session *sess)
     return err < FORT_ERR_OK ? err : FORT_ERR_OK;
 }
 
-int fort_end()
+int fort_end(void)
 {
     EXPECT_STATE(&fort_main_session, FORT_STATE_CLOSED);
     return fort_do_end(&fort_main_session);
