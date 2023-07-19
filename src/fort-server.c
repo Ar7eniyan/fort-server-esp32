@@ -274,7 +274,10 @@ fort_error fort_do_disconnect(fort_session *sess)
 fort_error fort_end(void)
 {
     EXPECT_STATE(&fort_main_session, FORT_STATE_CLOSED);
-    return fort_do_end(&fort_main_session);
+    xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
+    fort_error err = fort_do_end(&fort_main_session);
+    xSemaphoreGive(fort_main_session.lock);
+    return err;
 }
 
 fort_error fort_do_end(fort_session *sess)
@@ -325,13 +328,6 @@ ssize_t receive_packet_step(fort_session *sess, char **response) {
         if (received == -1) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
             ESP_LOGE(TAG, "recv() error in a main loop: %s", strerror(errno));
-        } else if (received == 0) {
-            if (sess->state != FORT_STATE_CLOSED) {
-                ESP_LOGE(TAG, "Unexpected socket close, closing the session");
-            }
-            xSemaphoreTake(sess->lock, portMAX_DELAY);
-            fort_do_end(&fort_main_session);
-            xSemaphoreGive(sess->lock);
         } else {
             bytes_left -= (size_t)received;
             recv_ptr += received;
@@ -461,7 +457,7 @@ void fort_task(void *parameters)
 
     xEventGroupWaitBits(fort_main_session.events, FORT_EVT_SERVER_HELLO, pdTRUE, pdTRUE, portMAX_DELAY);
     fds[0].fd = sess->service_socket;
-    fds[0].events = POLLIN;
+    fds[0].events = POLLIN | POLLHUP | POLLERR;
     fds[0].revents = 0;
 
     for (;;) {
@@ -475,6 +471,17 @@ void fort_task(void *parameters)
         if (fds[0].revents & POLLIN) {
             response_len = receive_packet_step(sess, &response);
             if (response_len) fds[0].events |= POLLOUT;
+        }
+        if (fds[0].revents & (POLLHUP | POLLERR)) {
+            // Service tcp connection has been closed by gateway with either
+            // FIN or RST
+            if (sess->state != FORT_STATE_CLOSED) {
+                ESP_LOGE(TAG, "Unexpected service connsection close,"
+                    " closing the session");
+            }
+            xSemaphoreTake(sess->lock, portMAX_DELAY);
+            fort_do_end(&fort_main_session);
+            xSemaphoreGive(sess->lock);
         }
         if (fds[0].revents & POLLOUT) {
             // Don't care about non-blocking, because we should send the response
