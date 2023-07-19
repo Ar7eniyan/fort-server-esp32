@@ -299,6 +299,20 @@ int fort_do_end(fort_session *sess)
     return FORT_ERR_OK;
 }
 
+fort_error fort_clear_error(void)
+{
+    xSemaphoreTake(fort_main_session.lock, portMAX_DELAY);
+    fort_error err = fort_main_session.error;
+    fort_main_session.error = FORT_ERR_OK;
+    xSemaphoreGive(fort_main_session.lock);
+    return err;
+}
+
+fort_state fort_current_state(void)
+{
+    return fort_main_session.state;
+}
+
 // Called only from fort-task when there are incoming data on service_socket,
 // does not block.
 // TODO: remove unneeded response handling from here and in the main loop

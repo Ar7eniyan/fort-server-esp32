@@ -82,6 +82,10 @@ int fort_disconnect(void);
 // close the service socket and other resources, cleanup the session for next use
 int fort_end(void);
 
+fort_error fort_clear_error(void);
+
+fort_state fort_current_state(void);
+
 const char *fort_strerror(fort_error err);
 
 
