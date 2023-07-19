@@ -34,12 +34,13 @@
 #define STATE_FMT(state) ((unsigned int)(state))
 #endif
 
+// TODO: make two versions: for incoming packets and for API functions
 #define EXPECT_STATE(sess_ptr, state_)                                  \
 if ((sess_ptr)->state != (state_)) {                                    \
     ESP_LOGE(TAG,                                                       \
         "Wrong state: expected " STATE_FMT_SPEC ", got" STATE_FMT_SPEC, \
         STATE_FMT(state_), STATE_FMT((sess_ptr)->state));               \
-    return FORT_ERR_WRONG_STATE;                                                          \
+    return FORT_ERR_WRONG_STATE;                                        \
 }
 
 typedef struct {
