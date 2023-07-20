@@ -307,12 +307,11 @@ fort_state fort_current_state(void)
 
 // Called only from fort-task when there are incoming data on service_socket,
 // does not block.
-// TODO: remove unneeded response handling from here and in the main loop
-ssize_t receive_packet_step(fort_session *sess, char **response) {
+fort_error receive_packet_step(fort_session *sess) {
     // Can I somehow wait (return) until a full header/data arrives
     // and then read it in a one go?
 
-    int response_len = 0;
+    fort_error err = FORT_ERR_OK;
     static size_t bytes_left = sizeof(fort_header);
     static char hdr_buf[sizeof(fort_header)];
     static char *recv_ptr = hdr_buf;
@@ -321,7 +320,7 @@ ssize_t receive_packet_step(fort_session *sess, char **response) {
     if (bytes_left) {
         ssize_t received = recv(sess->service_socket, recv_ptr, bytes_left, MSG_DONTWAIT);
         if (received == -1) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
+            if (errno == EAGAIN || errno == EWOULDBLOCK) return FORT_ERR_OK;
             ESP_LOGE(TAG, "recv() error in a main loop: %s", strerror(errno));
         } else {
             bytes_left -= (size_t)received;
@@ -342,7 +341,7 @@ ssize_t receive_packet_step(fort_session *sess, char **response) {
     // in both cases the packet is ready for processing
     if (!bytes_left && recv_ptr != hdr_buf + sizeof(fort_header)) {
         xSemaphoreTake(sess->lock, portMAX_DELAY);
-        response_len = handle_packet(sess, (const fort_header *)hdr_buf, data_buf, response);
+        err = handle_packet(sess, (const fort_header *)hdr_buf, data_buf);
         xSemaphoreGive(sess->lock);
         free(data_buf);
 
@@ -350,14 +349,13 @@ ssize_t receive_packet_step(fort_session *sess, char **response) {
         recv_ptr = hdr_buf;
     }
 
-    return response_len;
+    return err;
 }
 
 // TODO: break down to multiple functions
-ssize_t handle_packet(fort_session *sess, const fort_header *hdr, const void *data, char **response)
+fort_error handle_packet(fort_session *sess, const fort_header *hdr, const void *data)
 {
     size_t len = (size_t)hdr->data_length;
-    ssize_t response_len = 0;
 
     switch (hdr->packet_type) {
     case PACKET_HELLO:
@@ -449,7 +447,7 @@ ssize_t handle_packet(fort_session *sess, const fort_header *hdr, const void *da
         break;
     }
 
-    return response_len;
+    return FORT_ERR_OK;
 }
 
 // the main task that processes all incoming packets and responses on them
@@ -460,8 +458,7 @@ void fort_task(void *parameters)
     struct pollfd fds[20];
     int nevents = 0;
     size_t nfds = 1;
-    char *response = NULL;
-    ssize_t response_len = 0; // can return a negative value on error
+    fort_error err;
 
     xEventGroupWaitBits(fort_main_session.events, FORT_EVT_SERVER_HELLO, pdTRUE, pdTRUE, portMAX_DELAY);
     fds[0].fd = sess->service_socket;
@@ -477,8 +474,11 @@ void fort_task(void *parameters)
         }
 
         if (fds[0].revents & POLLIN) {
-            response_len = receive_packet_step(sess, &response);
-            if (response_len) fds[0].events |= POLLOUT;
+            err = receive_packet_step(sess);
+            if (err != FORT_ERR_OK) {
+                ESP_LOGW(TAG, "Error while processing a packet: "
+                    STATE_FMT_SPEC, STATE_FMT(err));
+            }
         }
         if (fds[0].revents & (POLLHUP | POLLERR)) {
             // Service tcp connection has been closed by gateway with either
@@ -490,13 +490,6 @@ void fort_task(void *parameters)
             xSemaphoreTake(sess->lock, portMAX_DELAY);
             fort_do_end(&fort_main_session);
             xSemaphoreGive(sess->lock);
-        }
-        if (fds[0].revents & POLLOUT) {
-            // Don't care about non-blocking, because we should send the response
-            // before processing a new packet
-            fort_send_all(sess->service_socket, response, response_len, 0);
-            free(response);
-            fds[0].events &= ~(short)POLLOUT;
         }
 
         fds[0].revents = 0;

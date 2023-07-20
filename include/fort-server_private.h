@@ -83,8 +83,8 @@ fort_error fort_do_listen(fort_session *sess, const uint16_t port, const int bac
 fort_error fort_do_disconnect(fort_session *sess);
 fort_error fort_do_end(fort_session *sess);
 
-ssize_t receive_packet_step(fort_session *sess, char **response);
-ssize_t handle_packet(fort_session *sess, const fort_header *hdr, const void *data, char **response);
+fort_error receive_packet_step(fort_session *sess);
+fort_error handle_packet(fort_session *sess, const fort_header *hdr, const void *data);
 void fort_task(void *parameters);
 
 #endif // FORT_SERVER_PRIVATE_H
