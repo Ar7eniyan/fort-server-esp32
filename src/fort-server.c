@@ -93,13 +93,16 @@ const char *fort_strerror(fort_error err)
 
 fort_error fort_begin(void)
 {
-    fort_main_session.state = FORT_STATE_IDLE;
     fort_main_session.lock = xSemaphoreCreateMutex();
-    xTaskCreate(
+    assert(fort_main_session.lock != NULL && "Could not create mutex");
+    fort_main_session.events = xEventGroupCreate();
+    assert(fort_main_session.events != NULL && "Could not create event group");
+
+    BaseType_t success = xTaskCreate(
         fort_task, FORT_TASK_NAME, FORT_TASK_STACK,NULL, FORT_TASK_PRIO, &fort_globals.fort_task
     );
+    assert(success != pdPASS && "Could not create main task");
 
-    fort_main_session.events = xEventGroupCreate();
     return FORT_ERR_OK;
 }
 
@@ -208,6 +211,7 @@ fort_error fort_bind_and_listen(uint16_t port, int backlog)
 fort_error fort_do_listen(fort_session *sess, const uint16_t port, const int backlog)
 {
     sess->accept_queue = xQueueCreate(backlog, sizeof(int));
+    assert(sess->accept_queue != NULL && "Failed to create accept queue");
     sess->gateway_bind_port = port;
 
     fort_header bind = {
@@ -283,7 +287,8 @@ fort_error fort_do_end(fort_session *sess)
     close(sess->service_socket);
     sess->service_socket = -1;
     memset(&sess->gateway_addr, 0, sizeof sess->gateway_addr);
-    vEventGroupDelete(sess->events);
+    // Clear all the bits
+    xEventGroupClearBits(sess->events, ~(EventBits_t)0);
     if (sess->accept_queue) {
         vQueueDelete(sess->accept_queue);
         sess->accept_queue = NULL;
@@ -334,7 +339,7 @@ fort_error receive_packet_step(fort_session *sess) {
         // TODO: use a local buffer for data with length <= 1024 or so
         data_buf = bytes_left ? (char *)malloc(bytes_left) : NULL;
         // check if malloc succeeds
-        assert(!bytes_left || data_buf);
+        assert((!bytes_left || data_buf != NULL) && "malloc failed");
         recv_ptr = data_buf;
     }
     // we've just received packet data or its length is zero after receiving header
@@ -499,8 +504,15 @@ void fort_task(void *parameters)
 }
 
 fort_session fort_main_session = {
-    
+    .error = FORT_ERR_OK,
+    .state = FORT_STATE_IDLE,
+    .gateway_bind_port = 0,
+    .service_socket = -1,
+    .gateway_addr = {},
+    .events = NULL,
+    .accept_queue = NULL,
+    .lock = NULL,
 };
 
 // initialized by fort_begin
-fort_globals_t fort_globals;
+fort_globals_t fort_globals = { .fort_task = NULL };

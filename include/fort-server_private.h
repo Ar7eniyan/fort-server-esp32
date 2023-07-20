@@ -44,7 +44,6 @@ if ((sess_ptr)->state != (state_)) {                                    \
 }
 
 typedef struct {
-    SemaphoreHandle_t api_lock;
     TaskHandle_t fort_task;
 } fort_globals_t;
 
