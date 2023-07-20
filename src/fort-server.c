@@ -412,6 +412,8 @@ ssize_t handle_packet(fort_session *sess, const fort_header *hdr, const void *da
             // we initiated a shutdown and got a response from the gateway
             sess->state = FORT_STATE_CLOSED;
             xEventGroupSetBits(sess->events, FORT_EVT_GATEWAY_SHUTD);
+            close(sess->service_socket);
+            sess->service_socket = -1;
             break;
         }
         if (sess->state != FORT_STATE_HELLO_RECEIVED && 
@@ -424,13 +426,14 @@ ssize_t handle_packet(fort_session *sess, const fort_header *hdr, const void *da
         // we just respond with a SHUTD packet
         fort_header shutd = { .packet_type = PACKET_SHUTD, .data_length = 0, .port = 0 };
         fort_error err = fort_send_all(sess->service_socket, &shutd, sizeof shutd, 0);
+        sess->state = FORT_STATE_CLOSED;
         if (err < FORT_ERR_OK) {
             ESP_LOGE(TAG, "Can't reply with SHUTD packet, "
                 "closing the socket by ourselves instead of the gateway");
             close(sess->service_socket);
+            sess->service_socket = -1;
             return err;
         }
-        sess->state = FORT_STATE_CLOSED;
         break;
     }
     case PACKET_BLANK:
