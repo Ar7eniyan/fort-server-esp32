@@ -1,21 +1,20 @@
 #ifndef FORT_SERVER_H
 #define FORT_SERVER_H
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
-#include <netdb.h>
-#include <sys/poll.h>
-
 #include <freertos/event_groups.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <sys/poll.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef enum {
-    FORT_STATE_IDLE, 
+    FORT_STATE_IDLE,
     FORT_STATE_HELLO_SENT,
     FORT_STATE_HELLO_RECEIVED,
     FORT_STATE_BOUND,
@@ -25,45 +24,45 @@ typedef enum {
 
 typedef enum {
     // Normal operation
-    FORT_ERR_OK = 0,
+    FORT_ERR_OK            = 0,
     // Gateway closed service socket
     FORT_ERR_SOCKET_CLOSED = -1,
     // Error in recv()
-    FORT_ERR_RECV = -2,
+    FORT_ERR_RECV          = -2,
     // Error in send()
-    FORT_ERR_SEND = -3,
+    FORT_ERR_SEND          = -3,
     // Error in getaddrinfo()
-    FORT_ERR_GETAI = -4,
+    FORT_ERR_GETAI         = -4,
     // Error in socket()
-    FORT_ERR_SOCKET = -5,
+    FORT_ERR_SOCKET        = -5,
     // Error in connect()
-    FORT_ERR_CONNECT = -6,
+    FORT_ERR_CONNECT       = -6,
     // Gateway failed to bind to a requested port, try a different port
-    FORT_ERR_GATEWAY_BIND = -7,
+    FORT_ERR_GATEWAY_BIND  = -7,
     // Timeout in fort_accept() or in receiving a response to HELLO or SHUTD
-    FORT_ERR_TIMEOUT = -8,
+    FORT_ERR_TIMEOUT       = -8,
     // Unexpected session state
-    FORT_ERR_WRONG_STATE = -9,
+    FORT_ERR_WRONG_STATE   = -9,
     // Accept queue is full
-    FORT_ERR_QUEUE_FULL = -10,
+    FORT_ERR_QUEUE_FULL    = -10,
 } fort_error;
 
 // TODO: hide the implementation to restrict a user to the public API
 typedef struct {
-    // Critical errors that don't occur during normal functioning    
+    // Critical errors that don't occur during normal functioning
     fort_error error;
     bool forwarding_enabled;
     fort_state state;
-    
+
     // for fort_bind_and_listen()
     uint16_t gateway_bind_port;
-    
+
     int service_socket;
     struct sockaddr_in gateway_addr;
 
     EventGroupHandle_t events;
     QueueHandle_t accept_queue;  // for `data` channel sockets
-    SemaphoreHandle_t lock; 
+    SemaphoreHandle_t lock;
 } fort_session;
 
 // Set up the main task, etc
@@ -79,7 +78,8 @@ int fort_accept(uint64_t timeout_ms);
 
 fort_error fort_disconnect(void);
 
-// close the service socket and other resources, cleanup the session for next use
+// close the service socket and other resources, cleanup the session for next
+// use
 fort_error fort_end(void);
 
 fort_error fort_clear_error(void);
@@ -94,7 +94,7 @@ const char *fort_strerror(fort_error err);
 extern fort_session fort_main_session;
 
 #ifdef __cplusplus
-} // extern "C"
+}  // extern "C"
 #endif
 
-#endif // FORT_SERVER_H
+#endif  // FORT_SERVER_H

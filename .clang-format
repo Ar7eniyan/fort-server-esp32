@@ -1,0 +1,67 @@
+BasedOnStyle: Google
+
+Language: Cpp
+Standard: Auto
+
+IndentWidth: 4
+TabWidth: 4
+ContinuationIndentWidth: 4
+ConstructorInitializerIndentWidth: 4
+AccessModifierOffset: -4
+MaxEmptyLinesToKeep: 2
+
+# AlignAfterOpenBracket: BlockIndent
+AlignArrayOfStructures: Left
+AlignConsecutiveAssignments:
+  Enabled: true
+  AcrossComments: true
+  PadOperators: true
+AlignConsecutiveBitFields: true
+AlignConsecutiveDeclarations: false
+AlignConsecutiveMacros: AcrossComments
+# AlignTrailingComments:
+#   Kind: Always
+#   OverEmptyLines: 1
+
+AllowShortBlocksOnASingleLine: Empty
+
+AlwaysBreakAfterReturnType: None
+AlwaysBreakBeforeMultilineStrings: true
+AlwaysBreakTemplateDeclarations: MultiLine
+
+BreakBeforeBraces: WebKit
+BreakConstructorInitializers: BeforeComma
+BreakInheritanceList: BeforeComma
+
+SortIncludes: CaseInsensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '\.hpp"'
+    Priority: 5
+  - Regex: '\.h"'
+    Priority: 4
+  - Regex: '^<'
+    Priority: 3
+  - Regex: '^<[a-z/]*'
+    Priority: 2
+  - Regex: '^"Arduino.h"|<Arduino.h>'
+    Priority: 1
+
+IndentCaseLabels: false
+IndentExternBlock: NoIndent
+IndentGotoLabels: false
+IndentPPDirectives: AfterHash
+# InsertNewLineAtEOF: true
+
+QualifierAlignment: Custom
+QualifierOrder: ['restrict', 'inline', 'constexpr', 'volatile', 'static', 'const', 'type']
+# SortUsingDeclarations: LexicographicNumeric
+SortUsingDeclarations: true
+
+# RemoveParentheses: ReturnStatement
+
+SpaceAfterTemplateKeyword: false
+SpaceBeforeCpp11BracedList: true
+SpacesInLineCommentPrefix:
+    Minimum: 1
+    Maximum: -1

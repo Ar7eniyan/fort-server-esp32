@@ -5,18 +5,17 @@
 // a library, so I'll just remind that it's all internal logic that shouldn't
 // be included in your project.
 
-#include "fort-server.h"
-
-#include "stdint.h"
-#include "stddef.h"
 #include "assert.h"
+#include "fort-server.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
+#include "stddef.h"
+#include "stdint.h"
 
-#define FORT_TASK_NAME     "fort-task"
-#define FORT_TASK_PRIO     10
-#define FORT_TASK_STACK    1024
+#define FORT_TASK_NAME  "fort-task"
+#define FORT_TASK_PRIO  10
+#define FORT_TASK_STACK 1024
 
 // Timeout in ms for HELLO and SHUTD handshake responses
 #define FORT_REPONSE_TIMEOUT 15000
@@ -27,21 +26,22 @@
 #define FORT_EVT_GATEWAY_SHUTD (4 << 0)
 
 #if FORT_EXTRA_DEBUG
-#define STATE_FMT_SPEC "%s"
-#define STATE_FMT(state) fort_state_to_str(state)
+#    define STATE_FMT_SPEC   "%s"
+#    define STATE_FMT(state) fort_state_to_str(state)
 #else
-#define STATE_FMT_SPEC "0x%X"
-#define STATE_FMT(state) ((unsigned int)(state))
+#    define STATE_FMT_SPEC   "0x%X"
+#    define STATE_FMT(state) ((unsigned int)(state))
 #endif
 
 // TODO: make two versions: for incoming packets and for API functions
-#define EXPECT_STATE(sess_ptr, state_)                                  \
-if ((sess_ptr)->state != (state_)) {                                    \
-    ESP_LOGE(TAG,                                                       \
-        "Wrong state: expected " STATE_FMT_SPEC ", got" STATE_FMT_SPEC, \
-        STATE_FMT(state_), STATE_FMT((sess_ptr)->state));               \
-    return FORT_ERR_WRONG_STATE;                                        \
-}
+#define EXPECT_STATE(sess_ptr, state_)                             \
+    if ((sess_ptr)->state != (state_)) {                           \
+        ESP_LOGE(TAG,                                              \
+                 "Wrong state: expected " STATE_FMT_SPEC           \
+                 ", got" STATE_FMT_SPEC,                           \
+                 STATE_FMT(state_), STATE_FMT((sess_ptr)->state)); \
+        return FORT_ERR_WRONG_STATE;                               \
+    }
 
 typedef struct {
     TaskHandle_t fort_task;
@@ -59,7 +59,7 @@ typedef enum {
 } packet_type;
 
 // Are we okay with misaligned memory access on ESP32?
-typedef struct __attribute__ ((__packed__)) {
+typedef struct __attribute__((__packed__)) {
     uint8_t packet_type;
     uint16_t port;
     uint16_t data_length;
@@ -70,20 +70,25 @@ static_assert(sizeof(fort_header) == 5, "fort_header is not fully packed");
 
 // utility functions for sending/receiving the set amount of data (blocking)
 // socket close is treated as an error even if all the data is sent/received
-static inline fort_error fort_send_all(int socket, void *buffer, size_t len, int flags);
-static inline fort_error fort_recv_all(int socket, void *buffer, size_t len, int flags);
+inline static fort_error fort_send_all(int socket, void *buffer, size_t len,
+                                       int flags);
+inline static fort_error fort_recv_all(int socket, void *buffer, size_t len,
+                                       int flags);
 
 #if FORT_EXTRA_DEBUG
 const char *fort_state_to_str(fort_state state);
 #endif
 
-fort_error fort_do_connect(fort_session *sess, const char *hostname, const uint16_t port);
-fort_error fort_do_listen(fort_session *sess, const uint16_t port, const int backlog);
+fort_error fort_do_connect(fort_session *sess, const char *hostname,
+                           const uint16_t port);
+fort_error fort_do_listen(fort_session *sess, const uint16_t port,
+                          const int backlog);
 fort_error fort_do_disconnect(fort_session *sess);
 fort_error fort_do_end(fort_session *sess);
 
 fort_error receive_packet_step(fort_session *sess);
-fort_error handle_packet(fort_session *sess, const fort_header *hdr, const void *data);
+fort_error handle_packet(fort_session *sess, const fort_header *hdr,
+                         const void *data);
 void fort_task(void *parameters);
 
-#endif // FORT_SERVER_PRIVATE_H
+#endif  // FORT_SERVER_PRIVATE_H
