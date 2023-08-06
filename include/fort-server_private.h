@@ -1,17 +1,19 @@
 #ifndef FORT_SERVER_PRIVATE_H
 #define FORT_SERVER_PRIVATE_H
 
+#include "fort-server.h"
+
 // Apparently, there's no way in Platformio to set up private includes for
 // a library, so I'll just remind that it's all internal logic that shouldn't
 // be included in your project.
 
-#include "assert.h"
-#include "fort-server.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
-#include "stddef.h"
-#include "stdint.h"
+
+#include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #define FORT_TASK_NAME  "fort-task"
 #define FORT_TASK_PRIO  10

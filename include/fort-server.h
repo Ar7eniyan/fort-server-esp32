@@ -1,8 +1,10 @@
 #ifndef FORT_SERVER_H
 #define FORT_SERVER_H
 
+#include "esp_log.h"
+#include "freertos/event_groups.h"
+
 #include <arpa/inet.h>
-#include <freertos/event_groups.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/poll.h>

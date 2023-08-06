@@ -1,6 +1,4 @@
 #include "fort-server.h"
-
-#include "esp_log.h"
 #include "fort-server_private.h"
 
 static const char *TAG = "fort-server";
