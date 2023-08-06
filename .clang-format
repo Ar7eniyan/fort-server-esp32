@@ -19,9 +19,7 @@ AlignConsecutiveAssignments:
 AlignConsecutiveBitFields: true
 AlignConsecutiveDeclarations: false
 AlignConsecutiveMacros: AcrossComments
-# AlignTrailingComments:
-#   Kind: Always
-#   OverEmptyLines: 1
+AlignTrailingComments: true
 
 AllowShortBlocksOnASingleLine: Empty
 
@@ -36,32 +34,33 @@ BreakInheritanceList: BeforeComma
 SortIncludes: CaseInsensitive
 IncludeBlocks: Regroup
 IncludeCategories:
-  - Regex: '\.hpp"'
-    Priority: 5
-  - Regex: '\.h"'
-    Priority: 4
-  - Regex: '^<'
-    Priority: 3
-  - Regex: '^<[a-z/]*'
-    Priority: 2
-  - Regex: '^"Arduino.h"|<Arduino.h>'
+  - Regex: '[-_]private\.h(pp)?"$'
+    Priority: 0
+  - Regex: '\.hpp"$'
     Priority: 1
+  - Regex: '\.h"$'
+    Priority: 2
+  - Regex: '^["<]Arduino.h[">]$'
+    Priority: 3
+  - Regex: '^<.*\.h>$'
+    Priority: 4
+  - Regex: '^<.*'
+    Priority: 5
+  - Regex: '.*'
+    Priority: 6
 
 IndentCaseLabels: false
 IndentExternBlock: NoIndent
 IndentGotoLabels: false
 IndentPPDirectives: AfterHash
-# InsertNewLineAtEOF: true
 
 QualifierAlignment: Custom
 QualifierOrder: ['restrict', 'inline', 'constexpr', 'volatile', 'static', 'const', 'type']
-# SortUsingDeclarations: LexicographicNumeric
+SortUsingDeclarations: LexicographicNumeric
 SortUsingDeclarations: true
-
-# RemoveParentheses: ReturnStatement
 
 SpaceAfterTemplateKeyword: false
 SpaceBeforeCpp11BracedList: true
 SpacesInLineCommentPrefix:
-    Minimum: 1
-    Maximum: -1
+  Minimum: 1
+  Maximum: -1
