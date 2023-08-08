@@ -1,0 +1,24 @@
+name: push
+
+on: push
+permissions: read-all
+
+jobs:
+  pio_build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: PlatformIO Run
+        uses: karniv00l/platformio-run-action@v1
+
+  trunk_check:
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write # For trunk to post annotations
+      contents: read # For repo checkout
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Trunk Check
+        uses: trunk-io/trunk-action@v1
