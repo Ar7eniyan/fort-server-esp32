@@ -1,15 +1,16 @@
 #ifndef FORT_SERVER_H
 #define FORT_SERVER_H
 
-#include "esp_log.h"
+#include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+#include "freertos/queue.h"
+#include "freertos/semphr.h"
+#include "esp_log.h"
 
-#include <arpa/inet.h>
-#include <netdb.h>
 #include <netinet/in.h>
-#include <sys/poll.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <sys/socket.h>
-#include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -37,17 +37,23 @@ IncludeCategories:
   - Regex: '[-_]private\.h(pp)?"$'
     Priority: 0
   - Regex: '\.hpp"$'
-    Priority: 1
+    Priority: 10
+  - Regex: '^"freertos/FreeRTOS\.h"$'
+    Priority: 20
+    SortPriority: 18
+  - Regex: '^"freertos/.*\.h"$'
+    Priority: 20
+    SortPriority: 19
   - Regex: '\.h"$'
-    Priority: 2
+    Priority: 20
   - Regex: '^["<]Arduino.h[">]$'
-    Priority: 3
+    Priority: 30
   - Regex: '^<.*\.h>$'
-    Priority: 4
+    Priority: 40
   - Regex: '^<.*'
-    Priority: 5
+    Priority: 50
   - Regex: '.*'
-    Priority: 6
+    Priority: 60
 
 IndentCaseLabels: false
 IndentExternBlock: NoIndent

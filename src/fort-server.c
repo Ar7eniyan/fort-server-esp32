@@ -1,6 +1,12 @@
 #include "fort-server.h"
 #include "fort-server_private.h"
 
+#include "esp_log.h"
+
+#include <netdb.h>
+#include <string.h>
+#include <sys/socket.h>
+
 static const char *TAG = "fort-server";
 
 fort_error fort_send_all(int socket, void *buffer, size_t len, int flags)
