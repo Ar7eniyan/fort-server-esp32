@@ -509,13 +509,11 @@ void fort_task(void *parameters)
             }
         }
         if (fds[0].revents & (POLLHUP | POLLERR)) {
-            // Service tcp connection has been closed by gateway with either
-            // FIN or RST
-            if (sess->state != FORT_STATE_CLOSED) {
-                ESP_LOGE(TAG,
-                         "Unexpected service connsection close,"
-                         " closing the session");
-            }
+            // Service tcp connection has been closed by gateway or an error
+            // occurred
+            ESP_LOGE(
+                TAG,
+                "Unexpected service connsection close, closing the session");
             xSemaphoreTake(sess->lock, portMAX_DELAY);
             fort_do_end(&fort_main_session);
             xSemaphoreGive(sess->lock);
