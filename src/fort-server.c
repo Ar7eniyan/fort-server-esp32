@@ -544,9 +544,8 @@ void fort_task(void *parameters)
             if (fds[0].revents & POLLIN) {
                 err = receive_packet_step(sess);
                 if (err != FORT_ERR_OK) {
-                    ESP_LOGW(TAG,
-                             "Error while processing a packet: " STATE_FMT_SPEC,
-                             STATE_FMT(err));
+                    ESP_LOGW(TAG, "Error while processing a packet: %s",
+                             fort_strerror(err));
                 }
                 if (sess->state == FORT_STATE_IDLE) {
                     // the session just has been closed
