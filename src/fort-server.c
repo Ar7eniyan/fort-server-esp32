@@ -116,7 +116,7 @@ fort_error fort_begin(void)
     BaseType_t success =
         xTaskCreate(fort_task, FORT_TASK_NAME, FORT_TASK_STACK, NULL,
                     FORT_TASK_PRIO, &fort_globals.fort_task);
-    assert(success != pdPASS && "Could not create main task");
+    assert(success == pdPASS && "Could not create main task");
 
     return FORT_ERR_OK;
 }
