@@ -1,9 +1,10 @@
+// clang-format off
 #ifndef PIO_UNIT_TESTING
 
-#    include "fort-server.h"
+#include "fort-server.h"
 
-#    include <assert.h>
-#    include <stdbool.h>
+#include <assert.h>
+#include <stdbool.h>
 
 void app_main(void);
 
