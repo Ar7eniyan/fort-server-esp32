@@ -99,6 +99,8 @@ const char *fort_strerror(fort_error err)
         return "Unexpected session state";
     case FORT_ERR_QUEUE_FULL:
         return "Accept queue is full";
+    case FORT_ERR_PROTOCOL:
+        return "Protocol error (e.g. invalid packet, etc.)";
     default:
         return "Unknown error";
     }
@@ -299,7 +301,7 @@ fort_error fort_do_end(fort_session *sess)
     sess->error             = FORT_ERR_OK;
     sess->state             = FORT_STATE_IDLE;
     sess->gateway_bind_port = 0;
-    close(sess->service_socket);
+    if (sess->service_socket > 0) close(sess->service_socket);
     sess->service_socket = -1;
     memset(&sess->gateway_addr, 0, sizeof sess->gateway_addr);
     // Clear all the bits
@@ -308,6 +310,17 @@ fort_error fort_do_end(fort_session *sess)
         vQueueDelete(sess->accept_queue);
         sess->accept_queue = NULL;
     }
+    return FORT_ERR_OK;
+}
+
+fort_error fort_do_close(fort_session *sess)
+{
+    sess->state = FORT_STATE_CLOSED;
+    int err     = close(sess->service_socket);
+    if (err != 0) {
+        ESP_LOGE(TAG, "close() error: %s", strerror(errno));
+    }
+    sess->service_socket = -1;
     return FORT_ERR_OK;
 }
 
@@ -375,7 +388,8 @@ fort_error receive_packet_step(fort_session *sess)
 fort_error handle_packet(fort_session *sess, const fort_header *hdr,
                          const void *data)
 {
-    size_t len = (size_t)hdr->data_length;
+    size_t len     = (size_t)hdr->data_length;
+    fort_error ret = FORT_ERR_OK;
 
     switch (hdr->packet_type) {
     case PACKET_HELLO:
@@ -428,11 +442,11 @@ fort_error handle_packet(fort_session *sess, const fort_header *hdr,
     }
     case PACKET_SHUTD: {
         if (sess->state == FORT_STATE_CLOSING) {
-            // we initiated a shutdown and got a response from the gateway
+            // we initiated a shutdown and got a response from the gateway,
+            // return control to fort_disconnect() and finalize the session here
             sess->state = FORT_STATE_CLOSED;
             xEventGroupSetBits(sess->events, FORT_EVT_GATEWAY_SHUTD);
-            close(sess->service_socket);
-            sess->service_socket = -1;
+            fort_do_close(sess);
             break;
         }
         if (sess->state != FORT_STATE_HELLO_RECEIVED &&
@@ -453,10 +467,22 @@ fort_error handle_packet(fort_session *sess, const fort_header *hdr,
             ESP_LOGE(TAG,
                      "Can't reply with SHUTD packet, "
                      "closing the socket by ourselves instead of the gateway");
-            close(sess->service_socket);
-            sess->service_socket = -1;
-            return err;
+            ret = err;
+            break;
         }
+        // wait until gateway closes the socket
+        char dummy;
+        ssize_t rc = recv(sess->service_socket, &dummy, 1, 0);
+        if (rc < 0) {
+            ESP_LOGE(TAG, "recv() error while waiting for socket to close: %s",
+                     strerror(errno));
+            ret = FORT_ERR_RECV;
+        } else if (rc > 0) {
+            ESP_LOGW(TAG,
+                     "Got unexpected data while waiting for socket to close");
+            ret = FORT_ERR_PROTOCOL;
+        }
+        fort_do_close(sess);
         break;
     }
     case PACKET_BLANK:
@@ -473,10 +499,12 @@ fort_error handle_packet(fort_session *sess, const fort_header *hdr,
         break;
     }
 
-    return FORT_ERR_OK;
+    return ret;
 }
 
-// the main task that processes all incoming packets and responses on them
+// The main task that processes all incoming packets and responses on them.
+// Also responsible for finalizing the session by calling fort_do_close() in
+// packet handling functions.
 // TODO: split into two tasks: network and internal logic
 void fort_task(void *parameters)
 {
@@ -486,40 +514,48 @@ void fort_task(void *parameters)
     size_t nfds = 1;
     fort_error err;
 
-    xEventGroupWaitBits(fort_main_session.events, FORT_EVT_SERVER_HELLO, pdTRUE,
-                        pdTRUE, portMAX_DELAY);
-    fds[0].fd      = sess->service_socket;
-    fds[0].events  = POLLIN | POLLHUP | POLLERR;
-    fds[0].revents = 0;
-
     for (;;) {
-        nevents = poll(fds, nfds, 1000);
-        if (nevents < 0) {
-            ESP_LOGE(TAG, "poll error: %s", strerror(errno));
-        } else if (nevents == 0) {
-            continue;
-        }
-
-        if (fds[0].revents & POLLIN) {
-            err = receive_packet_step(sess);
-            if (err != FORT_ERR_OK) {
-                ESP_LOGW(TAG,
-                         "Error while processing a packet: " STATE_FMT_SPEC,
-                         STATE_FMT(err));
-            }
-        }
-        if (fds[0].revents & (POLLHUP | POLLERR)) {
-            // Service tcp connection has been closed by gateway or an error
-            // occurred
-            ESP_LOGE(
-                TAG,
-                "Unexpected service connsection close, closing the session");
-            xSemaphoreTake(sess->lock, portMAX_DELAY);
-            fort_do_end(&fort_main_session);
-            xSemaphoreGive(sess->lock);
-        }
-
+        xEventGroupWaitBits(fort_main_session.events, FORT_EVT_SERVER_HELLO,
+                            pdTRUE, pdTRUE, portMAX_DELAY);
+        fds[0].fd      = sess->service_socket;
+        fds[0].events  = POLLIN | POLLHUP | POLLERR;
         fds[0].revents = 0;
+
+        for (;;) {
+            nevents = poll(fds, nfds, 1000);
+            if (nevents < 0) {
+                ESP_LOGE(TAG, "poll error: %s", strerror(errno));
+            } else if (nevents == 0) {
+                continue;
+            }
+
+            if (fds[0].revents & (POLLHUP | POLLERR)) {
+                // Service tcp connection has been closed by gateway or an error
+                // occurred
+                ESP_LOGE(TAG,
+                         "Unexpected service connsection close, closing the "
+                         "session");
+                xSemaphoreTake(sess->lock, portMAX_DELAY);
+                fort_do_close(&fort_main_session);
+                xSemaphoreGive(sess->lock);
+                break;
+            }
+
+            if (fds[0].revents & POLLIN) {
+                err = receive_packet_step(sess);
+                if (err != FORT_ERR_OK) {
+                    ESP_LOGW(TAG,
+                             "Error while processing a packet: " STATE_FMT_SPEC,
+                             STATE_FMT(err));
+                }
+                if (sess->state == FORT_STATE_IDLE) {
+                    // the session just has been closed
+                    break;
+                }
+            }
+            fds[0].revents = 0;
+        }
+        xEventGroupClearBits(sess->events, (EventBits_t)FORT_EVT_SERVER_HELLO);
     }
 
     vTaskDelete(NULL);

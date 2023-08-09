@@ -48,6 +48,8 @@ typedef enum {
     FORT_ERR_WRONG_STATE   = -9,
     // Accept queue is full
     FORT_ERR_QUEUE_FULL    = -10,
+    // A protocol error (e.g. invalid packet, etc.)
+    FORT_ERR_PROTOCOL      = -11,
 } fort_error;
 
 // TODO: hide the implementation to restrict a user to the public API

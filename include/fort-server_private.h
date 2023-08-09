@@ -86,6 +86,7 @@ fort_error fort_do_listen(fort_session *sess, const uint16_t port,
                           const int backlog);
 fort_error fort_do_disconnect(fort_session *sess);
 fort_error fort_do_end(fort_session *sess);
+fort_error fort_do_close(fort_session *sess);
 
 fort_error receive_packet_step(fort_session *sess);
 fort_error handle_packet(fort_session *sess, const fort_header *hdr,
