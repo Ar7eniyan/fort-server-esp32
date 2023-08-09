@@ -496,6 +496,7 @@ fort_error handle_packet(fort_session *sess, const fort_header *hdr,
 
     default:
         ESP_LOGW(TAG, "got an unknown packet type: 0x%X", hdr->packet_type);
+        ret = FORT_ERR_PROTOCOL;
         break;
     }
 
