@@ -11,7 +11,7 @@ lint:
     - actionlint@1.6.25
     - trivy@0.44.0
     - yamllint@1.32.0
-    - checkov@2.3.359
+    - checkov@2.3.360
     - clang-format@16.0.3
     - git-diff-check
     - prettier@3.0.1
