@@ -108,11 +108,13 @@ const char *fort_strerror(fort_error err)
 
 fort_error fort_begin(void)
 {
+    EXPECT_STATE(&fort_main_session, FORT_STATE_UNITIALIZED);
     fort_main_session.lock = xSemaphoreCreateMutex();
     assert(fort_main_session.lock != NULL && "Could not create mutex");
     fort_main_session.events = xEventGroupCreate();
     assert(fort_main_session.events != NULL && "Could not create event group");
 
+    fort_main_session.state = FORT_STATE_IDLE;
     BaseType_t success =
         xTaskCreate(fort_task, FORT_TASK_NAME, FORT_TASK_STACK, NULL,
                     FORT_TASK_PRIO, &fort_globals.fort_task);
@@ -563,7 +565,7 @@ void fort_task(void *parameters)
 
 fort_session fort_main_session = {
     .error             = FORT_ERR_OK,
-    .state             = FORT_STATE_IDLE,
+    .state             = FORT_STATE_UNITIALIZED,
     .gateway_bind_port = 0,
     .service_socket    = -1,
     .gateway_addr      = {},

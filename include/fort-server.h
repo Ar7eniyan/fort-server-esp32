@@ -17,6 +17,8 @@ extern "C" {
 #endif
 
 typedef enum {
+    // A psuedo-state that means fort_begin() hasn't been called
+    FORT_STATE_UNITIALIZED,
     FORT_STATE_IDLE,
     FORT_STATE_HELLO_SENT,
     FORT_STATE_HELLO_RECEIVED,
