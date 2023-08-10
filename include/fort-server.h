@@ -57,6 +57,7 @@ typedef enum {
 // TODO: hide the implementation to restrict a user to the public API
 typedef struct {
     // Critical errors that don't occur during normal functioning
+    // FIXME: isn't the mechanism redundant?
     fort_error error;
     bool forwarding_enabled;
     fort_state state;

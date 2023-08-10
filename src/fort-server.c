@@ -386,7 +386,7 @@ fort_error receive_packet_step(fort_session *sess)
     return err;
 }
 
-// TODO: break down to multiple functions
+// TODO: turn into a state machine with a lookup table
 fort_error handle_packet(fort_session *sess, const fort_header *hdr,
                          const void *data)
 {
@@ -508,7 +508,7 @@ fort_error handle_packet(fort_session *sess, const fort_header *hdr,
 // The main task that processes all incoming packets and responses on them.
 // Also responsible for finalizing the session by calling fort_do_close() in
 // packet handling functions.
-// TODO: split into two tasks: network and internal logic
+// TODO: split into two tasks: network and internal logic (state machine)
 void fort_task(void *parameters)
 {
     fort_session *sess = &fort_main_session;
