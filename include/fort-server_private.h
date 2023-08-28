@@ -57,6 +57,7 @@ typedef enum {
     PACKET_OPENC = 0x03,
     PACKET_SHUTD = 0x04,
     PACKET_BLANK = 0x05,
+    PACKET_MAX
 } packet_type;
 
 // Are we okay with misaligned memory access on ESP32?
@@ -67,6 +68,50 @@ typedef struct __attribute__((__packed__)) {
 } fort_header;
 
 static_assert(sizeof(fort_header) == 5, "fort_header is not fully packed");
+
+// packet handler function for a state machine
+typedef fort_error (*fort_pkt_handler)(fort_session *, const fort_header *,
+                                       const void *);
+
+// first index is the current state, second is the incoming packet type
+// TODO
+const fort_pkt_handler state_table[FORT_STATE_MAX][PACKET_MAX] = {
+    [FORT_STATE_UNITIALIZED]    = {[PACKET_HELLO] = NULL,
+                                   [PACKET_BINDR] = NULL,
+                                   [PACKET_OPENC] = NULL,
+                                   [PACKET_SHUTD] = NULL,
+                                   [PACKET_BLANK] = NULL},
+    [FORT_STATE_IDLE]           = {[PACKET_HELLO] = NULL,
+                                   [PACKET_BINDR] = NULL,
+                                   [PACKET_OPENC] = NULL,
+                                   [PACKET_SHUTD] = NULL,
+                                   [PACKET_BLANK] = NULL},
+    [FORT_STATE_HELLO_SENT]     = {[PACKET_HELLO] = NULL,
+                                   [PACKET_BINDR] = NULL,
+                                   [PACKET_OPENC] = NULL,
+                                   [PACKET_SHUTD] = NULL,
+                                   [PACKET_BLANK] = NULL},
+    [FORT_STATE_HELLO_RECEIVED] = {[PACKET_HELLO] = NULL,
+                                   [PACKET_BINDR] = NULL,
+                                   [PACKET_OPENC] = NULL,
+                                   [PACKET_SHUTD] = NULL,
+                                   [PACKET_BLANK] = NULL},
+    [FORT_STATE_BOUND]          = {[PACKET_HELLO] = NULL,
+                                   [PACKET_BINDR] = NULL,
+                                   [PACKET_OPENC] = NULL,
+                                   [PACKET_SHUTD] = NULL,
+                                   [PACKET_BLANK] = NULL},
+    [FORT_STATE_CLOSING]        = {[PACKET_HELLO] = NULL,
+                                   [PACKET_BINDR] = NULL,
+                                   [PACKET_OPENC] = NULL,
+                                   [PACKET_SHUTD] = NULL,
+                                   [PACKET_BLANK] = NULL},
+    [FORT_STATE_CLOSED]         = {[PACKET_HELLO] = NULL,
+                                   [PACKET_BINDR] = NULL,
+                                   [PACKET_OPENC] = NULL,
+                                   [PACKET_SHUTD] = NULL,
+                                   [PACKET_BLANK] = NULL},
+};
 
 
 // utility functions for sending/receiving the set amount of data (blocking)
