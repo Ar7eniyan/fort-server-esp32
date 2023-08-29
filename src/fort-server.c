@@ -171,6 +171,8 @@ fort_error fort_do_connect(fort_session *sess, const char *hostname,
     // use the firt addrinfo entry, fill in the port manually
     memcpy(&gateway_addr, servinfo->ai_addr, servinfo->ai_addrlen);
     gateway_addr.sin_port = htons(port);
+    ESP_LOGD(TAG, "Resolved %s to %s", hostname,
+             inet_ntoa(gateway_addr.sin_addr.s_addr));
 
     int service_sock = socket(servinfo->ai_family, servinfo->ai_socktype,
                               servinfo->ai_protocol);
