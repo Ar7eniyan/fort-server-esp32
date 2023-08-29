@@ -104,7 +104,8 @@ const fort_pkt_handler state_table[FORT_STATE_MAX][PACKET_MAX] = {
         [PACKET_BLANK] = fort_on_pkt_blank
     },
     [FORT_STATE_CLOSING] = {
-        [PACKET_SHUTD] = fort_on_pkt_shutd
+        [PACKET_SHUTD] = fort_on_pkt_shutd,
+        [PACKET_BLANK] = fort_on_pkt_blank
     },
     [FORT_STATE_CLOSED] = {},
 };
