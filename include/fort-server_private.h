@@ -69,16 +69,18 @@ typedef struct __attribute__((__packed__)) {
 
 static_assert(sizeof(fort_header) == 5, "fort_header is not fully packed");
 
-// packet handler function for a state machine
+// Packet handler function for a state machine.
+// Arguments: session, header, data
 typedef fort_error (*fort_pkt_handler)(fort_session *, const fort_header *,
                                        const void *);
 
-fort_pkt_handler fort_on_pkt_hello;
-fort_pkt_handler fort_on_pkt_bindr;
-fort_pkt_handler fort_on_pkt_openc;
-fort_pkt_handler fort_on_pkt_shutd;
-fort_pkt_handler fort_on_pkt_blank;
-fort_pkt_handler fort_on_pkt_default;
+fort_error fort_on_pkt_hello(fort_session *, const fort_header *, const void *);
+fort_error fort_on_pkt_bindr(fort_session *, const fort_header *, const void *);
+fort_error fort_on_pkt_openc(fort_session *, const fort_header *, const void *);
+fort_error fort_on_pkt_shutd(fort_session *, const fort_header *, const void *);
+fort_error fort_on_pkt_blank(fort_session *, const fort_header *, const void *);
+fort_error fort_on_pkt_default(fort_session *, const fort_header *,
+                               const void *);
 
 // First index is the current state, second is the incoming packet type.
 // All the elements are NULL by default, which invokes the default handler
