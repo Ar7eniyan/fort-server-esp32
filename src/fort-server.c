@@ -388,6 +388,115 @@ fort_error receive_packet_step(fort_session *sess)
     return err;
 }
 
+//
+// Packet handlers
+//
+fort_error fort_on_pkt_hello(fort_session *sess, const fort_header *hdr,
+                             const void *data)
+{
+    sess->state = FORT_STATE_HELLO_RECEIVED;
+    xEventGroupSetBits(sess->events, FORT_EVT_GATEWAY_HELLO);
+    return FORT_ERR_OK;
+}
+
+fort_error fort_on_pkt_bindr(fort_session *sess, const fort_header *hdr,
+                             const void *data)
+{
+    if (sess->gateway_bind_port == 0) {
+        return FORT_ERR_OK;
+    }
+    if (sess->gateway_bind_port != hdr->port) {
+        ESP_LOGE(TAG,
+                 "Gateway bind failure: port %u (got) != port %u (expected)",
+                 hdr->port, sess->gateway_bind_port);
+        sess->gateway_bind_port = 0;
+        return FORT_ERR_GATEWAY_BIND;
+    }
+    sess->state = FORT_STATE_BOUND;
+    xEventGroupSetBits(sess->events, FORT_EVT_GATEWAY_BINDR);
+    return FORT_ERR_OK;
+}
+
+fort_error fort_on_pkt_openc(fort_session *sess, const fort_header *hdr,
+                             const void *data)
+{
+    struct sockaddr_in addr = sess->gateway_addr;
+    addr.sin_port           = htons(hdr->port);
+
+    int sock = socket(addr.sin_family, SOCK_STREAM, 0);
+    if (sock == -1) {
+        ESP_LOGE(TAG, "socket creation error: %s", strerror(errno));
+        return FORT_ERR_SOCKET;
+    }
+    int err = connect(sock, (struct sockaddr *)&addr, sizeof addr);
+    if (err == -1) {
+        ESP_LOGE(TAG, "connect error: %s", strerror(errno));
+        close(sock);
+        return FORT_ERR_CONNECT;
+    }
+
+    if (xQueueSend(sess->accept_queue, &sock, 0) == errQUEUE_FULL) {
+        ESP_LOGE(TAG, "the queue is full, cannot accept a new connection");
+        close(sock);
+        return FORT_ERR_QUEUE_FULL;
+    }
+    return FORT_ERR_OK;
+}
+
+fort_error fort_on_pkt_blank(fort_session *sess, const fort_header *hdr,
+                             const void *data)
+{
+    size_t len = (size_t)hdr->data_length;
+    if (len) {
+        ESP_LOGD(TAG, "got a BLANK packet: %.*s", (int)len, (const char *)data);
+    } else {
+        ESP_LOGD(TAG, "got a BLANK packet with no data");
+    }
+    return FORT_ERR_OK;
+}
+
+fort_error fort_on_pkt_shutd(fort_session *sess, const fort_header *hdr,
+                             const void *data)
+{
+    if (sess->state == FORT_STATE_CLOSING) {
+        // We initiated a shutdown and got a response from the gateway,
+        // return control to fort_disconnect() and finalize the session here.
+        sess->state = FORT_STATE_CLOSED;
+        xEventGroupSetBits(sess->events, FORT_EVT_GATEWAY_SHUTD);
+        fort_do_close(sess);
+        return FORT_ERR_OK;
+    }
+
+    // Gateway initiated shutdown, so it's its job to close all the
+    // connections, we just respond with a SHUTD packet.
+    fort_header shutd = {
+        .packet_type = PACKET_SHUTD, .data_length = 0, .port = 0};
+    fort_error err =
+        fort_send_all(sess->service_socket, &shutd, sizeof shutd, 0);
+    sess->state = FORT_STATE_CLOSED;
+    if (err < FORT_ERR_OK) {
+        ESP_LOGE(TAG,
+                 "Can't reply with SHUTD packet, "
+                 "closing the socket by ourselves instead of the gateway");
+        fort_do_close(sess);
+        return err;
+    }
+    // Wait until gateway closes the socket
+    fort_error ret = FORT_ERR_OK;
+    char dummy;
+    ssize_t rc = recv(sess->service_socket, &dummy, 1, 0);
+    if (rc < 0) {
+        ESP_LOGE(TAG, "recv() error while waiting for socket to close: %s",
+                 strerror(errno));
+        ret = FORT_ERR_RECV;
+    } else if (rc > 0) {
+        ESP_LOGW(TAG, "Got unexpected data while waiting for socket to close");
+        ret = FORT_ERR_PROTOCOL;
+    }
+    fort_do_close(sess);
+    return ret;
+}
+
 // TODO: turn into a state machine with a lookup table
 fort_error handle_packet(fort_session *sess, const fort_header *hdr,
                          const void *data)

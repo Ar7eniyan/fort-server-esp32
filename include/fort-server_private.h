@@ -79,6 +79,7 @@ fort_error fort_on_pkt_bindr(fort_session *, const fort_header *, const void *);
 fort_error fort_on_pkt_openc(fort_session *, const fort_header *, const void *);
 fort_error fort_on_pkt_shutd(fort_session *, const fort_header *, const void *);
 fort_error fort_on_pkt_blank(fort_session *, const fort_header *, const void *);
+// Called if the handler in the state machine table is NULL
 fort_error fort_on_pkt_default(fort_session *, const fort_header *,
                                const void *);
 
