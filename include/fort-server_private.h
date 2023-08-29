@@ -73,46 +73,40 @@ static_assert(sizeof(fort_header) == 5, "fort_header is not fully packed");
 typedef fort_error (*fort_pkt_handler)(fort_session *, const fort_header *,
                                        const void *);
 
-// first index is the current state, second is the incoming packet type
-// TODO
-const fort_pkt_handler state_table[FORT_STATE_MAX][PACKET_MAX] = {
-    [FORT_STATE_UNITIALIZED]    = {[PACKET_HELLO] = NULL,
-                                   [PACKET_BINDR] = NULL,
-                                   [PACKET_OPENC] = NULL,
-                                   [PACKET_SHUTD] = NULL,
-                                   [PACKET_BLANK] = NULL},
-    [FORT_STATE_IDLE]           = {[PACKET_HELLO] = NULL,
-                                   [PACKET_BINDR] = NULL,
-                                   [PACKET_OPENC] = NULL,
-                                   [PACKET_SHUTD] = NULL,
-                                   [PACKET_BLANK] = NULL},
-    [FORT_STATE_HELLO_SENT]     = {[PACKET_HELLO] = NULL,
-                                   [PACKET_BINDR] = NULL,
-                                   [PACKET_OPENC] = NULL,
-                                   [PACKET_SHUTD] = NULL,
-                                   [PACKET_BLANK] = NULL},
-    [FORT_STATE_HELLO_RECEIVED] = {[PACKET_HELLO] = NULL,
-                                   [PACKET_BINDR] = NULL,
-                                   [PACKET_OPENC] = NULL,
-                                   [PACKET_SHUTD] = NULL,
-                                   [PACKET_BLANK] = NULL},
-    [FORT_STATE_BOUND]          = {[PACKET_HELLO] = NULL,
-                                   [PACKET_BINDR] = NULL,
-                                   [PACKET_OPENC] = NULL,
-                                   [PACKET_SHUTD] = NULL,
-                                   [PACKET_BLANK] = NULL},
-    [FORT_STATE_CLOSING]        = {[PACKET_HELLO] = NULL,
-                                   [PACKET_BINDR] = NULL,
-                                   [PACKET_OPENC] = NULL,
-                                   [PACKET_SHUTD] = NULL,
-                                   [PACKET_BLANK] = NULL},
-    [FORT_STATE_CLOSED]         = {[PACKET_HELLO] = NULL,
-                                   [PACKET_BINDR] = NULL,
-                                   [PACKET_OPENC] = NULL,
-                                   [PACKET_SHUTD] = NULL,
-                                   [PACKET_BLANK] = NULL},
-};
+fort_pkt_handler fort_on_pkt_hello;
+fort_pkt_handler fort_on_pkt_bindr;
+fort_pkt_handler fort_on_pkt_openc;
+fort_pkt_handler fort_on_pkt_shutd;
+fort_pkt_handler fort_on_pkt_blank;
+fort_pkt_handler fort_on_pkt_default;
 
+// First index is the current state, second is the incoming packet type.
+// All the elements are NULL by default, which invokes the default handler
+// (print a warning and (TODO)disconnect if in strict mode)
+// clang-format off
+const fort_pkt_handler state_table[FORT_STATE_MAX][PACKET_MAX] = {
+    [FORT_STATE_UNITIALIZED] = {},
+    [FORT_STATE_IDLE] = {},
+    [FORT_STATE_HELLO_SENT] = {
+        [PACKET_HELLO] = fort_on_pkt_hello,
+        [PACKET_BLANK] = fort_on_pkt_blank
+    },
+    [FORT_STATE_HELLO_RECEIVED] = {
+        [PACKET_BINDR] = fort_on_pkt_bindr,
+        [PACKET_SHUTD] = fort_on_pkt_shutd,
+        [PACKET_BLANK] = fort_on_pkt_blank
+    },
+    [FORT_STATE_BOUND] = {
+        [PACKET_OPENC] = fort_on_pkt_openc,
+        [PACKET_SHUTD] = fort_on_pkt_shutd,
+        [PACKET_BLANK] = fort_on_pkt_blank
+    },
+    [FORT_STATE_CLOSING] = {
+        [PACKET_SHUTD] = fort_on_pkt_shutd
+    },
+    [FORT_STATE_CLOSED] = {},
+};
+// clang-format on
 
 // utility functions for sending/receiving the set amount of data (blocking)
 // socket close is treated as an error even if all the data is sent/received
