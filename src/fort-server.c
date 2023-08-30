@@ -389,8 +389,34 @@ fort_error receive_packet_step(fort_session *sess)
 }
 
 //
-// Packet handlers
+// Packet handling logic
 //
+
+// Implementation of a state machine where the handler function procecces the
+// incoming packet, possibly sends a response or closes the connection, sets the
+// next state accordingly and returns an error code. Handlers are stored in the
+// global state_table 2d array.
+// TODO: make a strict mode, where we disconnect on any gateway misbehavior.
+fort_error handle_packet(fort_session *sess, const fort_header *hdr,
+                         const void *data)
+{
+    assert(sess->state > 0 && sess->state < FORT_STATE_MAX && "Invalid state");
+
+    if (hdr->packet_type >= PACKET_MAX) {
+        ESP_LOGE(TAG, "Invalid packet type: %u", hdr->packet_type);
+        return FORT_ERR_PROTOCOL;
+    }
+    fort_pkt_handler handler = state_table[sess->state][hdr->packet_type];
+    if (handler == NULL) {
+        ESP_LOGE(TAG,
+                 "Unexpected state (" STATE_FMT_SPEC
+                 ") for receiving packet with type 0x%X",
+                 hdr->packet_type, STATE_FMT(sess->state));
+        return FORT_ERR_WRONG_STATE;
+    }
+    return handler(sess, hdr, data);
+}
+
 fort_error fort_on_pkt_hello(fort_session *sess, const fort_header *hdr,
                              const void *data)
 {
@@ -497,124 +523,6 @@ fort_error fort_on_pkt_shutd(fort_session *sess, const fort_header *hdr,
     return ret;
 }
 
-// TODO: turn into a state machine with a lookup table
-fort_error handle_packet(fort_session *sess, const fort_header *hdr,
-                         const void *data)
-{
-    size_t len     = (size_t)hdr->data_length;
-    fort_error ret = FORT_ERR_OK;
-
-    switch (hdr->packet_type) {
-    case PACKET_HELLO:
-        EXPECT_STATE(sess, FORT_STATE_HELLO_SENT);
-        sess->state = FORT_STATE_HELLO_RECEIVED;
-        xEventGroupSetBits(sess->events, FORT_EVT_GATEWAY_HELLO);
-        break;
-
-    case PACKET_BINDR:
-        EXPECT_STATE(sess, FORT_STATE_HELLO_RECEIVED);
-        if (sess->gateway_bind_port == 0) {
-            break;
-        }
-        if (sess->gateway_bind_port != hdr->port) {
-            ESP_LOGE(
-                TAG,
-                "Gateway bind failure: port %u (got) != port %u (expected)",
-                hdr->port, sess->gateway_bind_port);
-            sess->gateway_bind_port = 0;
-            return FORT_ERR_GATEWAY_BIND;
-        }
-        sess->state = FORT_STATE_BOUND;
-        xEventGroupSetBits(sess->events, FORT_EVT_GATEWAY_BINDR);
-        break;
-
-    case PACKET_OPENC: {
-        EXPECT_STATE(sess, FORT_STATE_BOUND);
-        struct sockaddr_in addr = sess->gateway_addr;
-        addr.sin_port           = htons(hdr->port);
-
-        int sock = socket(addr.sin_family, SOCK_STREAM, 0);
-        if (sock == -1) {
-            ESP_LOGE(TAG, "socket creation error: %s", strerror(errno));
-            return FORT_ERR_SOCKET;
-        }
-        int err = connect(sock, (struct sockaddr *)&addr, sizeof addr);
-        if (err == -1) {
-            ESP_LOGE(TAG, "connect error: %s", strerror(errno));
-            close(sock);
-            return FORT_ERR_CONNECT;
-        }
-
-        if (xQueueSend(sess->accept_queue, &sock, 0) == errQUEUE_FULL) {
-            ESP_LOGE(TAG, "the queue is full, cannot accept a new connection");
-            close(sock);
-            return FORT_ERR_QUEUE_FULL;
-        }
-
-        break;
-    }
-    case PACKET_SHUTD: {
-        if (sess->state == FORT_STATE_CLOSING) {
-            // we initiated a shutdown and got a response from the gateway,
-            // return control to fort_disconnect() and finalize the session here
-            sess->state = FORT_STATE_CLOSED;
-            xEventGroupSetBits(sess->events, FORT_EVT_GATEWAY_SHUTD);
-            fort_do_close(sess);
-            break;
-        }
-        if (sess->state != FORT_STATE_HELLO_RECEIVED &&
-            sess->state != FORT_STATE_BOUND) {
-            ESP_LOGW(TAG,
-                     "Wrong state (" STATE_FMT_SPEC
-                     ") for SHUTD initiation, proceeding anyway",
-                     STATE_FMT(sess->state));
-        }
-        // gateway initiated shutdown, so it's its job to close all the
-        // connections, we just respond with a SHUTD packet
-        fort_header shutd = {
-            .packet_type = PACKET_SHUTD, .data_length = 0, .port = 0};
-        fort_error err =
-            fort_send_all(sess->service_socket, &shutd, sizeof shutd, 0);
-        sess->state = FORT_STATE_CLOSED;
-        if (err < FORT_ERR_OK) {
-            ESP_LOGE(TAG,
-                     "Can't reply with SHUTD packet, "
-                     "closing the socket by ourselves instead of the gateway");
-            ret = err;
-            break;
-        }
-        // wait until gateway closes the socket
-        char dummy;
-        ssize_t rc = recv(sess->service_socket, &dummy, 1, 0);
-        if (rc < 0) {
-            ESP_LOGE(TAG, "recv() error while waiting for socket to close: %s",
-                     strerror(errno));
-            ret = FORT_ERR_RECV;
-        } else if (rc > 0) {
-            ESP_LOGW(TAG,
-                     "Got unexpected data while waiting for socket to close");
-            ret = FORT_ERR_PROTOCOL;
-        }
-        fort_do_close(sess);
-        break;
-    }
-    case PACKET_BLANK:
-        if (len) {
-            ESP_LOGD(TAG, "got a BLANK packet: %.*s", (int)len,
-                     (const char *)data);
-        } else {
-            ESP_LOGD(TAG, "got a BLANK packet with no data");
-        }
-        break;
-
-    default:
-        ESP_LOGW(TAG, "got an unknown packet type: 0x%X", hdr->packet_type);
-        ret = FORT_ERR_PROTOCOL;
-        break;
-    }
-
-    return ret;
-}
 
 // The main task that processes all incoming packets and responses on them.
 // Also responsible for finalizing the session by calling fort_do_close() in
