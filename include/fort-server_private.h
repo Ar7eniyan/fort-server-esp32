@@ -16,7 +16,7 @@
 
 #define FORT_TASK_NAME  "fort-task"
 #define FORT_TASK_PRIO  10
-#define FORT_TASK_STACK 1024
+#define FORT_TASK_STACK 4096
 
 // Timeout in ms for HELLO and SHUTD handshake responses
 #define FORT_REPONSE_TIMEOUT 15000
