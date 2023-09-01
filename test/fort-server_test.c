@@ -61,11 +61,10 @@ void *run_fort_connect(void)
 
 void *run_fort_disconnect(void) { return (void *)fort_disconnect(); }
 
-void test_connect_disconnect(void)
+// The session should be in the IDLE state at this point
+// After this function, the session will be in the HELLO_RECEIVED state.
+void connect_localhost(int *local_socket, int *service_socket)
 {
-    ///
-    /// Connect part
-    ///
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_port   = htons(1337);
@@ -73,12 +72,15 @@ void test_connect_disconnect(void)
 
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     TEST_ASSERT(sock != -1);
+    *local_socket = sock;
     TEST_ASSERT(bind(sock, (struct sockaddr *)&addr, sizeof(addr)) == 0);
     TEST_ASSERT(listen(sock, 1) == 0);
 
     start_exec(run_fort_connect);
 
     int service_sock = accept(sock, NULL, NULL);
+    TEST_ASSERT(service_sock != -1);
+    *service_socket = service_sock;
     // Receive a HELLO packet from server
     char server_hello[5];
     TEST_ASSERT(recv(service_sock, server_hello, sizeof(server_hello), 0) ==
@@ -94,15 +96,18 @@ void test_connect_disconnect(void)
 
     TEST_ASSERT(wait_for_exec_result() == FORT_ERR_OK);
     TEST_ASSERT(fort_main_session.state == FORT_STATE_HELLO_RECEIVED);
+}
 
-    ///
-    /// Disonnect part
-    ///
+// The session should be in the BOUND or HELLO_RECEIVED state at this point.
+// After this function, the session will be in the CLOSED state.
+// The service socket (passed as a parameter) is closed by this function.
+void disconnect_localhost(int *service_sock)
+{
     start_exec(run_fort_disconnect);
 
     // Receive a SHUTD packet from server
     char server_shutd[5];
-    TEST_ASSERT(recv(service_sock, server_shutd, sizeof(server_shutd), 0) ==
+    TEST_ASSERT(recv(*service_sock, server_shutd, sizeof(server_shutd), 0) ==
                 sizeof(server_shutd));
     TEST_ASSERT_EQUAL_HEX8(0x04, server_shutd[0]);  // packet type
     TEST_ASSERT_EQUAL_HEX16(0, server_shutd[3]);    // data length
@@ -110,11 +115,21 @@ void test_connect_disconnect(void)
     // Reply with a SHUTD confirmation
     // Packet type - 0x04 (SHUTD), port - 0, data length - 0
     const char gateway_shutd[] = {0x04, 0x00, 0x00, 0x00, 0x00};
-    TEST_ASSERT(send(service_sock, gateway_shutd, sizeof(gateway_shutd), 0) ==
+    TEST_ASSERT(send(*service_sock, gateway_shutd, sizeof(gateway_shutd), 0) ==
                 sizeof(gateway_shutd));
 
     TEST_ASSERT(wait_for_exec_result() == FORT_ERR_OK);
     TEST_ASSERT(fort_main_session.state == FORT_STATE_CLOSED);
+
+    close(*service_sock);
+}
+
+void test_connect_disconnect(void)
+{
+    int local_sock, service_sock;
+    connect_localhost(&local_sock, &service_sock);
+    disconnect_localhost(&service_sock);
+    close(local_sock);
 
     TEST_ASSERT(fort_end() == FORT_ERR_OK);
 }
