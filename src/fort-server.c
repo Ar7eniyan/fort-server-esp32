@@ -485,11 +485,11 @@ fort_error fort_on_pkt_shutd(fort_session *sess, const fort_header *hdr,
                              const void *data)
 {
     if (sess->state == FORT_STATE_CLOSING) {
-        // We initiated a shutdown and got a response from the gateway,
-        // return control to fort_disconnect() and finalize the session here.
+        // We initiated a shutdown and got a response from the gateway, close
+        // the service socket and return control to fort_disconnect()
         sess->state = FORT_STATE_CLOSED;
-        xEventGroupSetBits(sess->events, FORT_EVT_GATEWAY_SHUTD);
         fort_do_close(sess);
+        xEventGroupSetBits(sess->events, FORT_EVT_GATEWAY_SHUTD);
         return FORT_ERR_OK;
     }
 
