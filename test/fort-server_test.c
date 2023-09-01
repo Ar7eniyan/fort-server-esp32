@@ -1,6 +1,5 @@
 #include "fort-server.h"
-// Should I use private definitions, or hardcode the values?
-// #include "fort-server_private.h"
+#include "fort-server_private.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -82,16 +81,15 @@ void connect_localhost(int *local_socket, int *service_socket)
     TEST_ASSERT(service_sock != -1);
     *service_socket = service_sock;
     // Receive a HELLO packet from server
-    char server_hello[5];
-    TEST_ASSERT(recv(service_sock, server_hello, sizeof(server_hello), 0) ==
+    fort_header server_hello;
+    TEST_ASSERT(recv(service_sock, &server_hello, sizeof(server_hello), 0) ==
                 sizeof(server_hello));
-    TEST_ASSERT_EQUAL_HEX8(0x01, server_hello[0]);  // packet type
-    TEST_ASSERT_EQUAL_HEX16(0, server_hello[3]);    // data length
+    TEST_ASSERT_EQUAL_HEX8(PACKET_HELLO, server_hello.packet_type);
+    TEST_ASSERT_EQUAL_HEX16(0, server_hello.data_length);
 
     // Reply with a HELLO handshake
-    // Packet type - 0x01 (HELLO), port - 0, data length - 0
-    const char gateway_hello[] = {0x01, 0x00, 0x00, 0x00, 0x00};
-    TEST_ASSERT(send(service_sock, gateway_hello, sizeof(gateway_hello), 0) ==
+    fort_header gateway_hello = {.packet_type = PACKET_HELLO, .data_length = 0};
+    TEST_ASSERT(send(service_sock, &gateway_hello, sizeof(gateway_hello), 0) ==
                 sizeof(gateway_hello));
 
     TEST_ASSERT(wait_for_exec_result() == FORT_ERR_OK);
@@ -106,16 +104,15 @@ void disconnect_localhost(int *service_sock)
     start_exec(run_fort_disconnect);
 
     // Receive a SHUTD packet from server
-    char server_shutd[5];
-    TEST_ASSERT(recv(*service_sock, server_shutd, sizeof(server_shutd), 0) ==
+    fort_header server_shutd;
+    TEST_ASSERT(recv(*service_sock, &server_shutd, sizeof(server_shutd), 0) ==
                 sizeof(server_shutd));
-    TEST_ASSERT_EQUAL_HEX8(0x04, server_shutd[0]);  // packet type
-    TEST_ASSERT_EQUAL_HEX16(0, server_shutd[3]);    // data length
+    TEST_ASSERT_EQUAL_HEX8(PACKET_SHUTD, server_shutd.packet_type);
+    TEST_ASSERT_EQUAL_HEX16(0, server_shutd.data_length);
 
     // Reply with a SHUTD confirmation
-    // Packet type - 0x04 (SHUTD), port - 0, data length - 0
-    const char gateway_shutd[] = {0x04, 0x00, 0x00, 0x00, 0x00};
-    TEST_ASSERT(send(*service_sock, gateway_shutd, sizeof(gateway_shutd), 0) ==
+    fort_header gateway_shutd = {.packet_type = PACKET_SHUTD, .data_length = 0};
+    TEST_ASSERT(send(*service_sock, &gateway_shutd, sizeof(gateway_shutd), 0) ==
                 sizeof(gateway_shutd));
 
     TEST_ASSERT(wait_for_exec_result() == FORT_ERR_OK);
