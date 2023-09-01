@@ -86,38 +86,14 @@ fort_error fort_on_pkt_default(fort_session *, const fort_header *,
 // First index is the current state, second is the incoming packet type.
 // All the elements are NULL by default, which invokes the default handler
 // (print a warning and (TODO)disconnect if in strict mode)
-// clang-format off
-const fort_pkt_handler state_table[FORT_STATE_MAX][PACKET_MAX] = {
-    [FORT_STATE_UNITIALIZED] = {},
-    [FORT_STATE_IDLE] = {},
-    [FORT_STATE_HELLO_SENT] = {
-        [PACKET_HELLO] = fort_on_pkt_hello,
-        [PACKET_BLANK] = fort_on_pkt_blank
-    },
-    [FORT_STATE_HELLO_RECEIVED] = {
-        [PACKET_BINDR] = fort_on_pkt_bindr,
-        [PACKET_SHUTD] = fort_on_pkt_shutd,
-        [PACKET_BLANK] = fort_on_pkt_blank
-    },
-    [FORT_STATE_BOUND] = {
-        [PACKET_OPENC] = fort_on_pkt_openc,
-        [PACKET_SHUTD] = fort_on_pkt_shutd,
-        [PACKET_BLANK] = fort_on_pkt_blank
-    },
-    [FORT_STATE_CLOSING] = {
-        [PACKET_SHUTD] = fort_on_pkt_shutd,
-        [PACKET_BLANK] = fort_on_pkt_blank
-    },
-    [FORT_STATE_CLOSED] = {},
-};
-// clang-format on
+//
+// Defined in fort-server.c.
+extern const fort_pkt_handler state_table[FORT_STATE_MAX][PACKET_MAX];
 
 // utility functions for sending/receiving the set amount of data (blocking)
 // socket close is treated as an error even if all the data is sent/received
-inline static fort_error fort_send_all(int socket, void *buffer, size_t len,
-                                       int flags);
-inline static fort_error fort_recv_all(int socket, void *buffer, size_t len,
-                                       int flags);
+fort_error fort_send_all(int socket, void *buffer, size_t len, int flags);
+fort_error fort_recv_all(int socket, void *buffer, size_t len, int flags);
 
 #if FORT_EXTRA_DEBUG
 const char *fort_state_to_str(fort_state state);

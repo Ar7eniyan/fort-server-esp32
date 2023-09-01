@@ -581,6 +581,32 @@ void fort_task(void *parameters)
     vTaskDelete(NULL);
 }
 
+// clang-format off
+const fort_pkt_handler state_table[FORT_STATE_MAX][PACKET_MAX] = {
+    [FORT_STATE_UNITIALIZED] = {},
+    [FORT_STATE_IDLE] = {},
+    [FORT_STATE_HELLO_SENT] = {
+        [PACKET_HELLO] = fort_on_pkt_hello,
+        [PACKET_BLANK] = fort_on_pkt_blank
+    },
+    [FORT_STATE_HELLO_RECEIVED] = {
+        [PACKET_BINDR] = fort_on_pkt_bindr,
+        [PACKET_SHUTD] = fort_on_pkt_shutd,
+        [PACKET_BLANK] = fort_on_pkt_blank
+    },
+    [FORT_STATE_BOUND] = {
+        [PACKET_OPENC] = fort_on_pkt_openc,
+        [PACKET_SHUTD] = fort_on_pkt_shutd,
+        [PACKET_BLANK] = fort_on_pkt_blank
+    },
+    [FORT_STATE_CLOSING] = {
+        [PACKET_SHUTD] = fort_on_pkt_shutd,
+        [PACKET_BLANK] = fort_on_pkt_blank
+    },
+    [FORT_STATE_CLOSED] = {},
+};
+// clang-format on
+
 fort_session fort_main_session = {
     .error             = FORT_ERR_OK,
     .state             = FORT_STATE_UNITIALIZED,
