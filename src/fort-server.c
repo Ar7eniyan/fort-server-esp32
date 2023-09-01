@@ -308,8 +308,8 @@ fort_error fort_do_end(fort_session *sess)
     if (sess->service_socket > 0) close(sess->service_socket);
     sess->service_socket = -1;
     memset(&sess->gateway_addr, 0, sizeof sess->gateway_addr);
-    // Clear all the bits
-    xEventGroupClearBits(sess->events, ~(EventBits_t)0);
+    // Clear all the 24 supported bits
+    xEventGroupClearBits(sess->events, 0x00FFFFFF);
     if (sess->accept_queue) {
         vQueueDelete(sess->accept_queue);
         sess->accept_queue = NULL;
