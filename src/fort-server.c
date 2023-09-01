@@ -568,7 +568,7 @@ void fort_task(void *parameters)
                     ESP_LOGW(TAG, "Error while processing a packet: %s",
                              fort_strerror(err));
                 }
-                if (sess->state == FORT_STATE_IDLE) {
+                if (sess->state == FORT_STATE_CLOSED) {
                     // the session just has been closed
                     break;
                 }
