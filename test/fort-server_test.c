@@ -90,12 +90,6 @@ void *run_fort_bind_and_listen(void)
     return (void *)fort_bind_and_listen(BIND_PORT, 5);
 }
 
-void *run_fort_accept(void)
-{
-    // Block forever
-    return (void *)fort_accept(-1);
-}
-
 // Connect the server to a fake gateway on localhost.
 // State before: IDLE; state after: HELLO_RECEIVED.
 void connect_localhost(int *local_socket, int *service_socket)
@@ -243,8 +237,6 @@ void test_bind_failure(int *service_sock)
 // State before: BOUND; state after: BOUND.
 void test_accept(int *service_sock)
 {
-    start_exec(run_fort_accept);
-
     int sock = make_local_socket(USER_CONN_PORT);
     TEST_ASSERT(listen(sock, 1) == 0);
 
@@ -254,7 +246,8 @@ void test_accept(int *service_sock)
     TEST_ASSERT(send(*service_sock, &gateway_openc, sizeof(gateway_openc), 0) ==
                 sizeof(gateway_openc));
 
-    int lsock = wait_for_exec_result();
+    // -1 means block forever
+    int lsock = fort_accept(-1);
     TEST_ASSERT(lsock > 0);
     int rsock = accept(sock, NULL, NULL);
 
