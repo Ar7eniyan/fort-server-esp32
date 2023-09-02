@@ -247,7 +247,8 @@ fort_error fort_do_listen(fort_session *sess, const uint16_t port,
     return fort_send_all(sess->service_socket, &bind, sizeof bind, 0);
 }
 
-int fort_accept(uint64_t timeout_ms)
+// If timeout_ms is negative, block forever
+int fort_accept(int64_t timeout_ms)
 {
     EXPECT_STATE(&fort_main_session, FORT_STATE_BOUND);
     if (fort_main_session.error) {
@@ -255,8 +256,9 @@ int fort_accept(uint64_t timeout_ms)
     }
 
     int sock;
-    int rc = xQueueReceive(fort_main_session.accept_queue, &sock,
-                           pdTICKS_TO_MS(timeout_ms));
+    TickType_t timeout =
+        timeout_ms < 0 ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
+    int rc = xQueueReceive(fort_main_session.accept_queue, &sock, timeout);
     return rc == pdTRUE ? sock : FORT_ERR_TIMEOUT;
 }
 

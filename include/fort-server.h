@@ -83,7 +83,7 @@ fort_error fort_connect(const char *hostname, const uint16_t port);
 // bind to a port and listen with a backlog in a single function
 fort_error fort_bind_and_listen(uint16_t port, int backlog);
 
-int fort_accept(uint64_t timeout_ms);
+int fort_accept(int64_t timeout_ms);
 
 fort_error fort_disconnect(void);
 
