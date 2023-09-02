@@ -96,10 +96,11 @@ void connect_localhost(int *local_socket, int *service_socket)
     TEST_ASSERT(fort_current_state() == FORT_STATE_HELLO_RECEIVED);
 }
 
+// Disconnect initiated by server (using fort_disconnect())
 // The session should be in the BOUND or HELLO_RECEIVED state at this point.
 // After this function, the session will be in the CLOSED state.
 // The service socket (passed as a parameter) is closed by this function.
-void disconnect_localhost(int *service_sock)
+void disconnect_localhost_server(int *service_sock)
 {
     start_exec(run_fort_disconnect);
 
@@ -121,13 +122,46 @@ void disconnect_localhost(int *service_sock)
     close(*service_sock);
 }
 
-void test_connect_disconnect(void)
+// Disconnect initiated by gateway (sends a SHUTD packet)
+// The session should be in the BOUND or HELLO_RECEIVED state at this point.
+// After this function, the session will be in the CLOSED state.
+// The service socket (passed as a parameter) is closed by this function.
+void disconnect_localhost_gateway(int *sevice_sock)
+{
+    // Send a SHUTD from gateway
+    fort_header gateway_shutd = {.packet_type = PACKET_SHUTD, .data_length = 0};
+    TEST_ASSERT(send(*sevice_sock, &gateway_shutd, sizeof(gateway_shutd), 0) ==
+                sizeof(gateway_shutd));
+
+    // Wait for SHUTD confirmation from server
+    fort_header server_shutd;
+    TEST_ASSERT(recv(*sevice_sock, &server_shutd, sizeof(server_shutd), 0) ==
+                sizeof(server_shutd));
+    TEST_ASSERT_EQUAL_HEX8(PACKET_SHUTD, server_shutd.packet_type);
+    TEST_ASSERT_EQUAL_HEX16(0, server_shutd.data_length);
+
+    close(*sevice_sock);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    TEST_ASSERT(fort_current_state() == FORT_STATE_CLOSED);
+}
+
+void test_connect_then_server_disconnect(void)
 {
     int local_sock, service_sock;
     connect_localhost(&local_sock, &service_sock);
-    disconnect_localhost(&service_sock);
+    disconnect_localhost_server(&service_sock);
     close(local_sock);
 
+    TEST_ASSERT(fort_end() == FORT_ERR_OK);
+}
+
+void test_connect_then_gateway_disconnect(void)
+{
+    int local_sock, service_sock;
+    connect_localhost(&local_sock, &service_sock);
+    disconnect_localhost_gateway(&service_sock);
+
+    close(local_sock);
     TEST_ASSERT(fort_end() == FORT_ERR_OK);
 }
 
@@ -148,6 +182,7 @@ void app_main(void)
     UNITY_BEGIN();
     RUN_TEST(test_begin);
     RUN_TEST(test_connect_fail);
-    RUN_TEST(test_connect_disconnect);
+    RUN_TEST(test_connect_then_server_disconnect);
+    RUN_TEST(test_connect_then_gateway_disconnect);
     UNITY_END();
 }
