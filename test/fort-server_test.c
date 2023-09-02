@@ -280,6 +280,25 @@ void test_connect_bind_accept_disconnect(void)
     TEST_ASSERT(fort_end() == FORT_ERR_OK);
 }
 
+void test_blank_packets(void)
+{
+    int local_sock, service_sock;
+    connect_localhost(&local_sock, &service_sock);
+
+    fort_header blank1 = {.packet_type = PACKET_BLANK, .data_length = 0};
+    const char msg[]   = "an example message from gateway";
+    fort_header blank2 = {.packet_type = PACKET_BLANK,
+                          .data_length = sizeof msg};
+
+    TEST_ASSERT(send(service_sock, &blank1, sizeof blank1, 0) == sizeof blank1);
+    TEST_ASSERT(send(service_sock, &blank2, sizeof blank2, 0) == sizeof blank2);
+    TEST_ASSERT(send(service_sock, msg, sizeof msg, 0) == sizeof msg);
+
+    disconnect_localhost_server(&service_sock);
+    close(local_sock);
+    TEST_ASSERT(fort_end() == FORT_ERR_OK);
+}
+
 void executor_task(void *)
 {
     uint32_t notification_value;
@@ -300,5 +319,6 @@ void app_main(void)
     RUN_TEST(test_connect_then_server_disconnect);
     RUN_TEST(test_connect_then_gateway_disconnect);
     RUN_TEST(test_connect_bind_accept_disconnect);
+    RUN_TEST(test_blank_packets);
     UNITY_END();
 }
