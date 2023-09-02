@@ -170,8 +170,8 @@ void test_connect_then_server_disconnect(void)
     int local_sock, service_sock;
     connect_localhost(&local_sock, &service_sock);
     disconnect_localhost_server(&service_sock);
-    close(local_sock);
 
+    close(local_sock);
     TEST_ASSERT(fort_end() == FORT_ERR_OK);
 }
 
