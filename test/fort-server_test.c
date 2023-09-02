@@ -7,6 +7,7 @@
 #include "esp_netif.h"
 #include "unity.h"
 
+#include <stdint.h>
 #include <sys/socket.h>
 
 typedef void *(*void_ptr_func)(void);
@@ -60,6 +61,11 @@ void *run_fort_connect(void)
 
 void *run_fort_disconnect(void) { return (void *)fort_disconnect(); }
 
+void *run_fort_bind_and_listen(void)
+{
+    return (void *)fort_bind_and_listen(31337, 5);
+}
+
 // The session should be in the IDLE state at this point
 // After this function, the session will be in the HELLO_RECEIVED state.
 void connect_localhost(int *local_socket, int *service_socket)
@@ -72,6 +78,12 @@ void connect_localhost(int *local_socket, int *service_socket)
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     TEST_ASSERT(sock != -1);
     *local_socket = sock;
+
+    // Get rid of "Address already in use" error
+    int yes = 1;
+    TEST_ASSERT(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) ==
+                0);
+
     TEST_ASSERT(bind(sock, (struct sockaddr *)&addr, sizeof(addr)) == 0);
     TEST_ASSERT(listen(sock, 1) == 0);
 
@@ -165,6 +177,63 @@ void test_connect_then_gateway_disconnect(void)
     TEST_ASSERT(fort_end() == FORT_ERR_OK);
 }
 
+void test_bind(int *service_sock)
+{
+    start_exec(run_fort_bind_and_listen);
+
+    // Receive a BINDR packet from server
+    fort_header server_bindr;
+    TEST_ASSERT(recv(*service_sock, &server_bindr, sizeof(server_bindr), 0) ==
+                sizeof(server_bindr));
+    TEST_ASSERT_EQUAL_HEX8(PACKET_BINDR, server_bindr.packet_type);
+    TEST_ASSERT_EQUAL_HEX16(31337, server_bindr.port);
+    TEST_ASSERT_EQUAL_HEX16(0, server_bindr.data_length);
+
+    // Confirm successful binding
+    fort_header gateway_bindr = {
+        .packet_type = PACKET_BINDR, .port = 31337, .data_length = 0};
+    TEST_ASSERT(send(*service_sock, &gateway_bindr, sizeof(gateway_bindr), 0) ==
+                sizeof(gateway_bindr));
+
+    TEST_ASSERT(wait_for_exec_result() == FORT_ERR_OK);
+    TEST_ASSERT(fort_current_state() == FORT_STATE_BOUND);
+}
+
+void test_bind_failure(int *service_sock)
+{
+    start_exec(run_fort_bind_and_listen);
+
+    // Receive a BINDR packet from server
+    fort_header server_bindr;
+    TEST_ASSERT(recv(*service_sock, &server_bindr, sizeof(server_bindr), 0) ==
+                sizeof(server_bindr));
+    TEST_ASSERT_EQUAL_HEX8(PACKET_BINDR, server_bindr.packet_type);
+    TEST_ASSERT_EQUAL_HEX16(31337, server_bindr.port);
+    TEST_ASSERT_EQUAL_HEX16(0, server_bindr.data_length);
+
+    // Unsuccessful binding, port = 0
+    fort_header gateway_bindr = {
+        .packet_type = PACKET_BINDR, .port = 0, .data_length = 0};
+    TEST_ASSERT(send(*service_sock, &gateway_bindr, sizeof(gateway_bindr), 0) ==
+                sizeof(gateway_bindr));
+
+    TEST_ASSERT(wait_for_exec_result() == FORT_ERR_GATEWAY_BIND);
+    TEST_ASSERT(fort_current_state() == FORT_STATE_HELLO_RECEIVED);
+}
+
+void test_connect_bind_disconnect(void)
+{
+    int local_sock, service_sock;
+    connect_localhost(&local_sock, &service_sock);
+
+    test_bind_failure(&service_sock);
+    test_bind(&service_sock);
+
+    disconnect_localhost_server(&service_sock);
+    close(local_sock);
+    TEST_ASSERT(fort_end() == FORT_ERR_OK);
+}
+
 void executor_task(void *)
 {
     uint32_t notification_value;
@@ -184,5 +253,6 @@ void app_main(void)
     RUN_TEST(test_connect_fail);
     RUN_TEST(test_connect_then_server_disconnect);
     RUN_TEST(test_connect_then_gateway_disconnect);
+    RUN_TEST(test_connect_bind_disconnect);
     UNITY_END();
 }
