@@ -226,7 +226,7 @@ fort_error fort_bind_and_listen(uint16_t port, int backlog)
         fort_main_session.events, FORT_EVT_GATEWAY_BINDR, pdTRUE, pdTRUE,
         pdMS_TO_TICKS(FORT_REPONSE_TIMEOUT));
 
-    if (bits & FORT_EVT_GATEWAY_BINDR == 0)
+    if ((bits & FORT_EVT_GATEWAY_BINDR) == 0)
         return FORT_ERR_TIMEOUT;
     else if (fort_main_session.state != FORT_STATE_BOUND)
         return FORT_ERR_GATEWAY_BIND;
