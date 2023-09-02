@@ -10,8 +10,9 @@
 #include <stdint.h>
 #include <sys/socket.h>
 
-#define SERVICE_PORT 1337
-#define BIND_PORT    31337
+#define SERVICE_PORT   1337
+#define BIND_PORT      31337
+#define USER_CONN_PORT 1234
 
 
 typedef void *(*void_ptr_func)(void);
@@ -68,6 +69,12 @@ void *run_fort_disconnect(void) { return (void *)fort_disconnect(); }
 void *run_fort_bind_and_listen(void)
 {
     return (void *)fort_bind_and_listen(BIND_PORT, 5);
+}
+
+void *run_fort_accept(void)
+{
+    // Block forever
+    return (void *)fort_accept(-1);
 }
 
 // Connect the server to a fake gateway on localhost.
@@ -227,13 +234,61 @@ void test_bind_failure(int *service_sock)
     TEST_ASSERT(fort_current_state() == FORT_STATE_HELLO_RECEIVED);
 }
 
-void test_connect_bind_disconnect(void)
+// Accept a connection, run some data over it and close it.
+// State before: BOUND; state after: BOUND.
+void test_accept(int *service_sock)
+{
+    start_exec(run_fort_accept);
+
+    struct sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_port   = htons(USER_CONN_PORT);
+    TEST_ASSERT(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    TEST_ASSERT(sock != -1);
+
+    // Get rid of "Address already in use" error
+    int yes = 1;
+    TEST_ASSERT(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) ==
+                0);
+
+    TEST_ASSERT(bind(sock, (struct sockaddr *)&addr, sizeof(addr)) == 0);
+    TEST_ASSERT(listen(sock, 1) == 0);
+
+    // Inform server about an ongoing connection
+    fort_header gateway_openc = {
+        .packet_type = PACKET_OPENC, .port = USER_CONN_PORT, .data_length = 0};
+    TEST_ASSERT(send(*service_sock, &gateway_openc, sizeof(gateway_openc), 0) ==
+                sizeof(gateway_openc));
+
+    int lsock = wait_for_exec_result();
+    TEST_ASSERT(lsock > 0);
+    int rsock = accept(sock, NULL, NULL);
+
+    const char buf[] = "Hello, world!";
+    char buf2[sizeof buf];
+
+    // server to "client"
+    TEST_ASSERT(send(lsock, buf, sizeof buf, 0) == sizeof buf);
+    TEST_ASSERT(recv(rsock, buf2, sizeof buf2, 0) == sizeof buf2);
+    TEST_ASSERT(strncmp(buf, buf2, sizeof buf) == 0);
+    // "client" to server
+    TEST_ASSERT(send(rsock, buf, sizeof buf, 0) == sizeof buf);
+    TEST_ASSERT(recv(lsock, buf2, sizeof buf2, 0) == sizeof buf2);
+    TEST_ASSERT(strncmp(buf, buf2, sizeof buf) == 0);
+    close(rsock);
+    close(lsock);
+}
+
+void test_connect_bind_accept_disconnect(void)
 {
     int local_sock, service_sock;
     connect_localhost(&local_sock, &service_sock);
 
     test_bind_failure(&service_sock);
     test_bind(&service_sock);
+    test_accept(&service_sock);
 
     disconnect_localhost_server(&service_sock);
     close(local_sock);
@@ -259,6 +314,6 @@ void app_main(void)
     RUN_TEST(test_connect_fail);
     RUN_TEST(test_connect_then_server_disconnect);
     RUN_TEST(test_connect_then_gateway_disconnect);
-    RUN_TEST(test_connect_bind_disconnect);
+    RUN_TEST(test_connect_bind_accept_disconnect);
     UNITY_END();
 }
