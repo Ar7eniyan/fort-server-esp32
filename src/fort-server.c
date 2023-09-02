@@ -226,7 +226,12 @@ fort_error fort_bind_and_listen(uint16_t port, int backlog)
         fort_main_session.events, FORT_EVT_GATEWAY_BINDR, pdTRUE, pdTRUE,
         pdMS_TO_TICKS(FORT_REPONSE_TIMEOUT));
 
-    return (bits & FORT_EVT_GATEWAY_BINDR) ? FORT_ERR_OK : FORT_ERR_TIMEOUT;
+    if (bits & FORT_EVT_GATEWAY_BINDR == 0)
+        return FORT_ERR_TIMEOUT;
+    else if (fort_main_session.state != FORT_STATE_BOUND)
+        return FORT_ERR_GATEWAY_BIND;
+    else
+        return FORT_ERR_OK;
 }
 
 fort_error fort_do_listen(fort_session *sess, const uint16_t port,
@@ -429,6 +434,7 @@ fort_error fort_on_pkt_bindr(fort_session *sess, const fort_header *hdr,
                              const void *data)
 {
     if (sess->gateway_bind_port == 0) {
+        ESP_LOGW(TAG, "Unexpected bind confirmation from gateway");
         return FORT_ERR_OK;
     }
     if (sess->gateway_bind_port != hdr->port) {
@@ -436,6 +442,7 @@ fort_error fort_on_pkt_bindr(fort_session *sess, const fort_header *hdr,
                  "Gateway bind failure: port %u (got) != port %u (expected)",
                  hdr->port, sess->gateway_bind_port);
         sess->gateway_bind_port = 0;
+        xEventGroupSetBits(sess->events, FORT_EVT_GATEWAY_BINDR);
         return FORT_ERR_GATEWAY_BIND;
     }
     sess->state = FORT_STATE_BOUND;
