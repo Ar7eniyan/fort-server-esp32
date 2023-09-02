@@ -41,13 +41,13 @@ void tearDown(void) {}
 void test_begin(void)
 {
     TEST_ASSERT(fort_begin() == FORT_ERR_OK);
-    TEST_ASSERT(fort_main_session.state == FORT_STATE_IDLE);
+    TEST_ASSERT(fort_current_state() == FORT_STATE_IDLE);
 }
 
 void test_connect_fail(void)
 {
     TEST_ASSERT(fort_connect("localhost", 1337) == FORT_ERR_CONNECT);
-    TEST_ASSERT(fort_main_session.state == FORT_STATE_IDLE);
+    TEST_ASSERT(fort_current_state() == FORT_STATE_IDLE);
     fort_clear_error();
 }
 
@@ -93,7 +93,7 @@ void connect_localhost(int *local_socket, int *service_socket)
                 sizeof(gateway_hello));
 
     TEST_ASSERT(wait_for_exec_result() == FORT_ERR_OK);
-    TEST_ASSERT(fort_main_session.state == FORT_STATE_HELLO_RECEIVED);
+    TEST_ASSERT(fort_current_state() == FORT_STATE_HELLO_RECEIVED);
 }
 
 // The session should be in the BOUND or HELLO_RECEIVED state at this point.
@@ -116,7 +116,7 @@ void disconnect_localhost(int *service_sock)
                 sizeof(gateway_shutd));
 
     TEST_ASSERT(wait_for_exec_result() == FORT_ERR_OK);
-    TEST_ASSERT(fort_main_session.state == FORT_STATE_CLOSED);
+    TEST_ASSERT(fort_current_state() == FORT_STATE_CLOSED);
 
     close(*service_sock);
 }
