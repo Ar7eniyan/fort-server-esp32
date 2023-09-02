@@ -33,6 +33,25 @@ void *wait_for_exec_result(void)
     return execution_result;
 }
 
+// Returns a socket bound to localhost:port
+int make_local_socket(uint16_t port)
+{
+    struct sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_port   = htons(port);
+    assert(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
+
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    assert(sock != -1);
+
+    // Get rid of "Address already in use" error
+    int yes = 1;
+    assert(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) == 0);
+
+    assert(bind(sock, (struct sockaddr *)&addr, sizeof(addr)) == 0);
+    return sock;
+}
+
 void setUp(void)
 {
     ESP_ERROR_CHECK(esp_netif_init());
@@ -81,26 +100,12 @@ void *run_fort_accept(void)
 // State before: IDLE; state after: HELLO_RECEIVED.
 void connect_localhost(int *local_socket, int *service_socket)
 {
-    struct sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_port   = htons(SERVICE_PORT);
-    TEST_ASSERT(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
-
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
-    TEST_ASSERT(sock != -1);
-    *local_socket = sock;
-
-    // Get rid of "Address already in use" error
-    int yes = 1;
-    TEST_ASSERT(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) ==
-                0);
-
-    TEST_ASSERT(bind(sock, (struct sockaddr *)&addr, sizeof(addr)) == 0);
-    TEST_ASSERT(listen(sock, 1) == 0);
+    *local_socket = make_local_socket(SERVICE_PORT);
+    TEST_ASSERT(listen(*local_socket, 1) == 0);
 
     start_exec(run_fort_connect);
 
-    int service_sock = accept(sock, NULL, NULL);
+    int service_sock = accept(*local_socket, NULL, NULL);
     TEST_ASSERT(service_sock != -1);
     *service_socket = service_sock;
     // Receive a HELLO packet from server
@@ -240,20 +245,7 @@ void test_accept(int *service_sock)
 {
     start_exec(run_fort_accept);
 
-    struct sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_port   = htons(USER_CONN_PORT);
-    TEST_ASSERT(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
-
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
-    TEST_ASSERT(sock != -1);
-
-    // Get rid of "Address already in use" error
-    int yes = 1;
-    TEST_ASSERT(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) ==
-                0);
-
-    TEST_ASSERT(bind(sock, (struct sockaddr *)&addr, sizeof(addr)) == 0);
+    int sock = make_local_socket(USER_CONN_PORT);
     TEST_ASSERT(listen(sock, 1) == 0);
 
     // Inform server about an ongoing connection
