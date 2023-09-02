@@ -10,6 +10,10 @@
 #include <stdint.h>
 #include <sys/socket.h>
 
+#define SERVICE_PORT 1337
+#define BIND_PORT    31337
+
+
 typedef void *(*void_ptr_func)(void);
 void executor_task(void *);
 TaskHandle_t executor_task_handle;
@@ -47,7 +51,7 @@ void test_begin(void)
 
 void test_connect_fail(void)
 {
-    TEST_ASSERT(fort_connect("localhost", 1337) == FORT_ERR_CONNECT);
+    TEST_ASSERT(fort_connect("localhost", SERVICE_PORT) == FORT_ERR_CONNECT);
     TEST_ASSERT(fort_current_state() == FORT_STATE_IDLE);
     fort_clear_error();
 }
@@ -56,14 +60,14 @@ void test_connect_fail(void)
 void *run_fort_connect(void)
 {
     // void * is large enough to hold an enum (fort_error)
-    return (void *)fort_connect("localhost", 1337);
+    return (void *)fort_connect("localhost", SERVICE_PORT);
 }
 
 void *run_fort_disconnect(void) { return (void *)fort_disconnect(); }
 
 void *run_fort_bind_and_listen(void)
 {
-    return (void *)fort_bind_and_listen(31337, 5);
+    return (void *)fort_bind_and_listen(BIND_PORT, 5);
 }
 
 // The session should be in the IDLE state at this point
@@ -72,7 +76,7 @@ void connect_localhost(int *local_socket, int *service_socket)
 {
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
-    addr.sin_port   = htons(1337);
+    addr.sin_port   = htons(SERVICE_PORT);
     TEST_ASSERT(inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) == 1);
 
     int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -186,12 +190,12 @@ void test_bind(int *service_sock)
     TEST_ASSERT(recv(*service_sock, &server_bindr, sizeof(server_bindr), 0) ==
                 sizeof(server_bindr));
     TEST_ASSERT_EQUAL_HEX8(PACKET_BINDR, server_bindr.packet_type);
-    TEST_ASSERT_EQUAL_HEX16(31337, server_bindr.port);
+    TEST_ASSERT_EQUAL_HEX16(BIND_PORT, server_bindr.port);
     TEST_ASSERT_EQUAL_HEX16(0, server_bindr.data_length);
 
     // Confirm successful binding
     fort_header gateway_bindr = {
-        .packet_type = PACKET_BINDR, .port = 31337, .data_length = 0};
+        .packet_type = PACKET_BINDR, .port = BIND_PORT, .data_length = 0};
     TEST_ASSERT(send(*service_sock, &gateway_bindr, sizeof(gateway_bindr), 0) ==
                 sizeof(gateway_bindr));
 
@@ -208,7 +212,7 @@ void test_bind_failure(int *service_sock)
     TEST_ASSERT(recv(*service_sock, &server_bindr, sizeof(server_bindr), 0) ==
                 sizeof(server_bindr));
     TEST_ASSERT_EQUAL_HEX8(PACKET_BINDR, server_bindr.packet_type);
-    TEST_ASSERT_EQUAL_HEX16(31337, server_bindr.port);
+    TEST_ASSERT_EQUAL_HEX16(BIND_PORT, server_bindr.port);
     TEST_ASSERT_EQUAL_HEX16(0, server_bindr.data_length);
 
     // Unsuccessful binding, port = 0
