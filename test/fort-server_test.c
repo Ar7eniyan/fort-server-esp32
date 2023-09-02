@@ -70,8 +70,8 @@ void *run_fort_bind_and_listen(void)
     return (void *)fort_bind_and_listen(BIND_PORT, 5);
 }
 
-// The session should be in the IDLE state at this point
-// After this function, the session will be in the HELLO_RECEIVED state.
+// Connect the server to a fake gateway on localhost.
+// State before: IDLE; state after: HELLO_RECEIVED.
 void connect_localhost(int *local_socket, int *service_socket)
 {
     struct sockaddr_in addr;
@@ -112,9 +112,8 @@ void connect_localhost(int *local_socket, int *service_socket)
     TEST_ASSERT(fort_current_state() == FORT_STATE_HELLO_RECEIVED);
 }
 
-// Disconnect initiated by server (using fort_disconnect())
-// The session should be in the BOUND or HELLO_RECEIVED state at this point.
-// After this function, the session will be in the CLOSED state.
+// Disconnect initiated by server (using fort_disconnect()).
+// State before: HELLO_RECEIVED or BOUND; state after: CLOSED.
 // The service socket (passed as a parameter) is closed by this function.
 void disconnect_localhost_server(int *service_sock)
 {
@@ -138,9 +137,8 @@ void disconnect_localhost_server(int *service_sock)
     close(*service_sock);
 }
 
-// Disconnect initiated by gateway (sends a SHUTD packet)
-// The session should be in the BOUND or HELLO_RECEIVED state at this point.
-// After this function, the session will be in the CLOSED state.
+// Disconnect initiated by gateway (sends a SHUTD packet).
+// State before: BOUND or HELLO_RECEIVED; state after: CLOSED.
 // The service socket (passed as a parameter) is closed by this function.
 void disconnect_localhost_gateway(int *sevice_sock)
 {
@@ -181,6 +179,8 @@ void test_connect_then_gateway_disconnect(void)
     TEST_ASSERT(fort_end() == FORT_ERR_OK);
 }
 
+// Successfully bind to a port.
+// State before: HELLO_RECEIVED; state after: BOUND.
 void test_bind(int *service_sock)
 {
     start_exec(run_fort_bind_and_listen);
@@ -203,6 +203,8 @@ void test_bind(int *service_sock)
     TEST_ASSERT(fort_current_state() == FORT_STATE_BOUND);
 }
 
+// Unsuccessfuly bind.
+// State before: HELLO_RECEIVED; state after: HELLO_RECEIVED.
 void test_bind_failure(int *service_sock)
 {
     start_exec(run_fort_bind_and_listen);
